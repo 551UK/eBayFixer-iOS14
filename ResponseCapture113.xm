@@ -62,11 +62,24 @@ static NSMutableDictionary *EB113CompleteOriginals(void) {
     return dict;
 }
 
+static NSValue *EB113ValueForIMP(IMP imp) {
+    if (!imp) return nil;
+    return [NSValue value:&imp withObjCType:@encode(IMP)];
+}
+
+static IMP EB113IMPFromValue(NSValue *value) {
+    if (!value) return NULL;
+    IMP imp = NULL;
+    [value getValue:&imp];
+    return imp;
+}
+
 static IMP EB113OriginalForObject(NSMutableDictionary *dict, id object) {
     Class cls = object_getClass(object);
     while (cls) {
         NSValue *value = dict[EB113ClassKey(cls)];
-        if (value) return [value pointerValue];
+        IMP imp = EB113IMPFromValue(value);
+        if (imp) return imp;
         cls = class_getSuperclass(cls);
     }
     return NULL;
@@ -191,8 +204,9 @@ static void EB113InstallDelegateHooks(void) {
         if (!EB113DataOriginals()[key] && EB113ClassImplementsDirectly(cls, dataSel)) {
             IMP old = NULL;
             MSHookMessageEx(cls, dataSel, (IMP)EB113DidReceiveData, &old);
-            if (old) {
-                EB113DataOriginals()[key] = [NSValue valueWithPointer:old];
+            NSValue *value = EB113ValueForIMP(old);
+            if (value) {
+                EB113DataOriginals()[key] = value;
                 dataHooks++;
             }
         }
@@ -200,8 +214,9 @@ static void EB113InstallDelegateHooks(void) {
         if (!EB113CompleteOriginals()[key] && EB113ClassImplementsDirectly(cls, completeSel)) {
             IMP old = NULL;
             MSHookMessageEx(cls, completeSel, (IMP)EB113DidComplete, &old);
-            if (old) {
-                EB113CompleteOriginals()[key] = [NSValue valueWithPointer:old];
+            NSValue *value = EB113ValueForIMP(old);
+            if (value) {
+                EB113CompleteOriginals()[key] = value;
                 completeHooks++;
             }
         }
