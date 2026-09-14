@@ -63,7 +63,7 @@ jobs:
             gh release create "$tag" "$deb" \
               --target "$GITHUB_SHA" \
               --title "eBayFixer ${version}" \
-              --notes "First native iOS 14 compatibility build. Removes the expired-version prompt, separates public/DCS/backend version identity, and forces View Item onto listing_details v2."
+              --notes "Native iOS 14 compatibility build: spoofs eBay 6.96.0 as 6.273.0, removes the update gate, preserves the DCS schema, enables the VLP Home flow, and moves View Item onto listing_details v2."
           fi
 
           for old in $(gh release list --limit 100 --json tagName --jq '.[].tagName'); do
