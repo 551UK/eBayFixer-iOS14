@@ -2,6 +2,8 @@
 #import <objc/runtime.h>
 #import <substrate.h>
 
+static void EB119ScheduleInstall(void);
+
 static NSMutableSet *EBHomeInstalledHooks(void) {
     static NSMutableSet *set;
     static dispatch_once_t onceToken;
@@ -47,6 +49,7 @@ static void EBInstallHomeCompat(void) {
     @autoreleasepool {
         if (![[[NSBundle mainBundle] bundleIdentifier] isEqualToString:@"com.ebay.iphone"]) return;
         EBInstallHomeCompat();
+        EB119ScheduleInstall();
         for (NSNumber *delay in @[@0.1, @0.25, @0.75, @1.5, @3.0, @5.0, @8.0]) {
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)),
                            dispatch_get_main_queue(), ^{ EBInstallHomeCompat(); });
