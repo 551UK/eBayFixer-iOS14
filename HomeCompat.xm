@@ -36,8 +36,6 @@ static void EBInstallHomeCompat(void) {
 
     for (NSString *name in toggleClasses) {
         Class cls = NSClassFromString(name);
-        // 6.96 exports these selectors on ObjCHomePageFeatureToggles.
-        // Enable its native F90 / Vertical Landing path and disable the old kill switch.
         EBHomeHook(cls, @"vlpF90", (IMP)EBHomeYes);
         EBHomeHook(cls, @"vlpF90KillSwitch", (IMP)EBHomeNo);
         EBHomeHook(cls, @"preprodServiceVLPHomepage", (IMP)EBHomeNo);
@@ -55,3 +53,5 @@ static void EBInstallHomeCompat(void) {
         }
     }
 }
+
+#include "HomeState118.xm"
