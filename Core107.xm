@@ -28,6 +28,14 @@ static BOOL EB107IsDCSURL(NSURL *url) {
 static BOOL EB107IsAPIURL(NSURL *url) {
     if (!url) return NO;
     NSString *host = url.host.lowercaseString ?: @"";
+    NSString *path = url.path.lowercaseString ?: @"";
+
+    // eBay 6.96 sends Home through APISD rather than api.ebay.com.
+    // Native experience-service calls should use the known-working 6.192.0
+    // client identity while update/DCS checks continue to see 6.273.0.
+    if ([host isEqualToString:@"apisd.ebay.com"] || [host hasPrefix:@"apisd.ebay."]) return YES;
+    if ([path hasPrefix:@"/experience/"]) return YES;
+
     return [host isEqualToString:@"api.ebay.com"] || [host hasPrefix:@"api.ebay."] ||
            [host isEqualToString:@"apima.qa.ebay.com"] || [host hasSuffix:@".api.ebay.com"];
 }
