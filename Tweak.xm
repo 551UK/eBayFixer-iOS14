@@ -221,17 +221,17 @@ static void EBScheduleNativeHooks(void) {
 %end
 
 %hook NSMutableURLRequest
-- (void)setURL:(NSURL *)URL { %orig(EBURL(URL)); }
+- (void)setURL:(NSURL *)URL { NSURL *rewritten = EBURL(URL); %orig(rewritten); }
 - (void)setValue:(NSString *)value forHTTPHeaderField:(NSString *)field {
-    if (EBIsEBayHost(self.URL.host)) { %orig(EBHeaderValue(field, value), field); return; }
+    if (EBIsEBayHost(self.URL.host)) { NSString *rewritten = EBHeaderValue(field, value); %orig(rewritten, field); return; }
     %orig;
 }
 - (void)addValue:(NSString *)value forHTTPHeaderField:(NSString *)field {
-    if (EBIsEBayHost(self.URL.host)) { %orig(EBHeaderValue(field, value), field); return; }
+    if (EBIsEBayHost(self.URL.host)) { NSString *rewritten = EBHeaderValue(field, value); %orig(rewritten, field); return; }
     %orig;
 }
 - (void)setAllHTTPHeaderFields:(NSDictionary *)headers {
-    if (EBIsEBayHost(self.URL.host)) { %orig(EBHeaders(headers, self.URL)); return; }
+    if (EBIsEBayHost(self.URL.host)) { NSDictionary *rewritten = EBHeaders(headers, self.URL); %orig(rewritten); return; }
     %orig;
 }
 %end
@@ -243,18 +243,24 @@ static void EBScheduleNativeHooks(void) {
         if ([key isKindOfClass:[NSString class]] && [copy[key] isKindOfClass:[NSString class]])
             copy[key] = EBHeaderValue((NSString *)key, (NSString *)copy[key]);
     }
-    %orig(copy ?: headers);
+    NSDictionary *finalHeaders = copy ?: headers;
+    %orig(finalHeaders);
 }
 %end
 
 %hook NSURLSession
 - (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request completionHandler:(void (^)(NSData *, NSURLResponse *, NSError *))handler {
-    return %orig(EBPreparedRequest(request), handler);
+    NSURLRequest *prepared = EBPreparedRequest(request);
+    return %orig(prepared, handler);
 }
-- (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request { return %orig(EBPreparedRequest(request)); }
+- (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request {
+    NSURLRequest *prepared = EBPreparedRequest(request);
+    return %orig(prepared);
+}
 - (NSURLSessionUploadTask *)uploadTaskWithRequest:(NSURLRequest *)request fromData:(NSData *)data completionHandler:(void (^)(NSData *, NSURLResponse *, NSError *))handler {
     NSURLRequest *prepared = EBPreparedRequest(request);
-    return %orig(prepared, EBBody(data, prepared.URL), handler);
+    NSData *body = EBBody(data, prepared.URL);
+    return %orig(prepared, body, handler);
 }
 %end
 
