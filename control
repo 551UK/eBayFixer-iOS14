@@ -1,8 +1,8 @@
 Package: com.551.ebayfixer
 Name: eBayFixer iOS 14
-Version: 1.0.9
+Version: 1.0.10
 Architecture: iphoneos-arm
-Description: Fixes eBay 6.96 on rootful iOS 14, spoofs 6.273.0, removes the update gate, and routes legacy Home requests through api.ebay.com.
+Description: eBay compatibility build for rootful iOS 14.
 Maintainer: 551UK
 Author: 551UK
 Section: Tweaks
