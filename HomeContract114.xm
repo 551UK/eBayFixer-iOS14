@@ -4,10 +4,10 @@ static NSString *const EB114HomePathOld = @"/experience/shopping/v1/home";
 static NSString *const EB114HomePathNew = @"/experience/vertical_landing/v1/get_homepage";
 
 static NSString *EB114SupportedHomeComponents(void) {
-    // Full set of VLP/Home UX component names present in the eBay 6.96
-    // HomePageModule binary. Do not advertise newer 6.192-only components
-    // that the old renderer does not contain.
-    return @"ITEMS_CAROUSEL,ITEMS_CAROUSEL_V3,SELLERS,TEXT_BANNER,FULL_BLEED_BANNER,MULTI_CTA_BANNER,NOTIFICATIONS,EVENTS_CAROUSEL,NAVIGATION_IMAGE_GRID,USER_GARAGE_CAROUSEL,CARD_CONTAINERS_CAROUSEL,NAV_DESTINATIONS_CAROUSEL,COLOR_BLOCK_BANNER,CARD_CONTAINERS_CAROUSEL_GROUP,ITEM_CARD_CAROUSEL,USER_GARAGE_MODULE,ITEM_CARD_LIST,PAGE_TITLE,MERCH_GRID,NAVIGATION_BAR,COLD_START_TOP_OF_PAGE,TOP_OF_PAGE_WITH_VEHICLE,RECOMMENDED_ACTIONS";
+    // Parser-safe VLP set verified to exist in BOTH supplied binaries:
+    // the real eBay 6.96 HomePageModule and the working 6.192 main binary.
+    // Do not advertise old Answers-only/retired names or 6.192-only renderers.
+    return @"NAVIGATION_IMAGE_GRID,ITEMS_CAROUSEL,ITEM_CARD_LIST,PAGE_TITLE,MERCH_GRID,NAVIGATION_BAR,COLD_START_TOP_OF_PAGE,TOP_OF_PAGE_WITH_VEHICLE,RECOMMENDED_ACTIONS,CARD_CONTAINERS_CAROUSEL_GROUP,ITEM_CARD_CAROUSEL,USER_GARAGE_MODULE";
 }
 
 static BOOL EB114IsEBayHost(NSString *host) {
@@ -39,6 +39,9 @@ static NSURL *EB114NormalizeHomeURL(NSURL *url) {
         [items addObject:item];
     }
 
+    // Keep these two legacy fields for this controlled test. They are accepted
+    // by the VLP service (HTTP 200) and changing them at the same time would
+    // make it harder to isolate the actual compatibility issue.
     if (!hasAnswersVersion) [items addObject:[NSURLQueryItem queryItemWithName:@"answersVersion" value:@"1"]];
     if (!hasPage) [items addObject:[NSURLQueryItem queryItemWithName:@"_pgn" value:@"all"]];
     [items addObject:[NSURLQueryItem queryItemWithName:@"supported_ux_components" value:EB114SupportedHomeComponents()]];
