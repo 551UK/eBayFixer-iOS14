@@ -48,7 +48,7 @@ static BOOL EB120GetFieldOffsets(Class cls, uint32_t outOffsets[EB120ExpectedFie
     if (!cls || !outOffsets) return NO;
     if (class_getInstanceSize(cls) != EB120ExpectedInstanceSize) return NO;
 
-    uint8_t *metadata = (uint8_t *)(void *)cls;
+    uint8_t *metadata = (uint8_t *)(__bridge void *)cls;
     uint32_t *vector = (uint32_t *)(metadata + (EB120FieldVectorWordOffset * sizeof(void *)));
 
     uint32_t previous = 0;
