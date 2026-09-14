@@ -29,6 +29,10 @@ static void EB110Log(NSString *format, ...) {
 
 static NSString *EB110Kind(NSURL *url) {
     NSString *path = url.path.lowercaseString ?: @"";
+    if ([path containsString:@"/experience/vertical_landing/v1/module_provider"]) return @"HOME_PROVIDER";
+    if ([path containsString:@"/experience/listing_details/v2/module_provider"] ||
+        [path containsString:@"/experience/listing_details/v2/preview_draft_listing"] ||
+        [path containsString:@"/experience/listing_details/v2/quick_view"]) return @"ITEM_PROVIDER";
     if ([path containsString:@"/experience/shopping/v1/home"] ||
         [path containsString:@"/experience/vertical_landing/v1/get_homepage"]) return @"HOME";
     if ([path containsString:@"/experience/listing_details/"] ||
