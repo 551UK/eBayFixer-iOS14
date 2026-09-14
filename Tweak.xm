@@ -122,7 +122,10 @@ static BOOL EBIsExpiryAlert(UIViewController *controller) {
 %end
 
 %hook NSMutableURLRequest
-- (void)setURL:(NSURL *)URL { %orig(EBRewriteURL(URL)); }
+- (void)setURL:(NSURL *)URL {
+    NSURL *rewrittenURL = EBRewriteURL(URL);
+    %orig(rewrittenURL);
+}
 - (void)setValue:(NSString *)value forHTTPHeaderField:(NSString *)field {
     if (EBIsEBayHost(self.URL.host)) {
         NSString *v = EBIsVersionHeader(field) ? EBIdentityForURL(self.URL) :
@@ -141,27 +144,38 @@ static BOOL EBIsExpiryAlert(UIViewController *controller) {
     }
     %orig;
 }
-- (void)setAllHTTPHeaderFields:(NSDictionary<NSString *,NSString *> *)headers { %orig(EBRewriteHeaders(headers, self.URL)); }
+- (void)setAllHTTPHeaderFields:(NSDictionary<NSString *,NSString *> *)headers {
+    NSDictionary *rewrittenHeaders = EBRewriteHeaders(headers, self.URL);
+    %orig(rewrittenHeaders);
+}
 %end
 
 %hook NSURLSession
 - (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request completionHandler:(void (^)(NSData *, NSURLResponse *, NSError *))completionHandler {
-    return %orig(EBPrepareRequest(request), completionHandler);
+    NSURLRequest *preparedRequest = EBPrepareRequest(request);
+    return %orig(preparedRequest, completionHandler);
 }
-- (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request { return %orig(EBPrepareRequest(request)); }
+- (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request {
+    NSURLRequest *preparedRequest = EBPrepareRequest(request);
+    return %orig(preparedRequest);
+}
 - (NSURLSessionUploadTask *)uploadTaskWithRequest:(NSURLRequest *)request fromData:(NSData *)bodyData completionHandler:(void (^)(NSData *, NSURLResponse *, NSError *))completionHandler {
-    return %orig(EBPrepareRequest(request), bodyData, completionHandler);
+    NSURLRequest *preparedRequest = EBPrepareRequest(request);
+    return %orig(preparedRequest, bodyData, completionHandler);
 }
 - (NSURLSessionDownloadTask *)downloadTaskWithRequest:(NSURLRequest *)request completionHandler:(void (^)(NSURL *, NSURLResponse *, NSError *))completionHandler {
-    return %orig(EBPrepareRequest(request), completionHandler);
+    NSURLRequest *preparedRequest = EBPrepareRequest(request);
+    return %orig(preparedRequest, completionHandler);
 }
 %end
 
 %hook NSURLConnection
 - (instancetype)initWithRequest:(NSURLRequest *)request delegate:(id)delegate startImmediately:(BOOL)startImmediately {
-    return %orig(EBPrepareRequest(request), delegate, startImmediately);
+    NSURLRequest *preparedRequest = EBPrepareRequest(request);
+    return %orig(preparedRequest, delegate, startImmediately);
 }
 + (void)sendAsynchronousRequest:(NSURLRequest *)request queue:(NSOperationQueue *)queue completionHandler:(void (^)(NSURLResponse *, NSData *, NSError *))handler {
-    %orig(EBPrepareRequest(request), queue, handler);
+    NSURLRequest *preparedRequest = EBPrepareRequest(request);
+    %orig(preparedRequest, queue, handler);
 }
 %end
