@@ -7,5 +7,6 @@ Native compatibility patch for eBay 6.96.0 on rootful iOS 14.
 - Forces the newer VLP Home flow already present in 6.96.0.
 - Forces View Item onto the v2 listing endpoints used by eBay 6.192.0.
 - Avoids overwriting Apollo's separate `apollographql-client-version` header.
+- Logs only focused Home/Search/View Item request status to `eBayFixer.log` for testing.
 
 Built from a direct comparison of eBay 6.96.0 (iOS 14) and eBay 6.192.0 (iOS 16).
