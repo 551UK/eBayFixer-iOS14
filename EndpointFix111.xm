@@ -11,9 +11,7 @@ static NSURL *EB111RewriteURL(NSURL *url) {
     NSString *path = url.path ?: @"";
     NSString *newPath = nil;
 
-    if ([path isEqualToString:@"/experience/shopping/v1/home"]) {
-        newPath = @"/experience/vertical_landing/v1/get_homepage";
-    } else if ([path isEqualToString:@"/experience/listing_details/v1/view_item"]) {
+    if ([path isEqualToString:@"/experience/listing_details/v1/view_item"]) {
         newPath = @"/experience/listing_details/v2/view_item";
     } else if ([path isEqualToString:@"/experience/listing_details/v1/module_provider"]) {
         newPath = @"/experience/listing_details/v2/module_provider";

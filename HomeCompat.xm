@@ -2,7 +2,6 @@
 #import <objc/runtime.h>
 #import <substrate.h>
 
-static NSString *const EBHomeURL = @"https://api.ebay.com/experience/vertical_landing/v1/get_homepage";
 
 static NSMutableSet *EBHomeInstalledHooks(void) {
     static NSMutableSet *set;
@@ -13,7 +12,6 @@ static NSMutableSet *EBHomeInstalledHooks(void) {
 
 static BOOL EBHomeYes(id self, SEL _cmd) { return YES; }
 static BOOL EBHomeNo(id self, SEL _cmd) { return NO; }
-static id EBHomeBaseURL(id self, SEL _cmd) { return EBHomeURL; }
 
 static BOOL EBHomeHook(Class cls, NSString *selectorName, IMP replacement) {
     if (!cls || !selectorName.length || !replacement) return NO;
@@ -39,20 +37,14 @@ static void EBInstallHomeCompat(void) {
 
     for (NSString *name in toggleClasses) {
         Class cls = NSClassFromString(name);
-        EBHomeHook(cls, @"vlpF90", (IMP)EBHomeYes);
-        EBHomeHook(cls, @"vlpF90KillSwitch", (IMP)EBHomeNo);
+        EBHomeHook(cls, @"vlpF90", (IMP)EBHomeNo);
+        EBHomeHook(cls, @"vlpF90KillSwitch", (IMP)EBHomeYes);
         EBHomeHook(cls, @"preprodServiceVLPHomepage", (IMP)EBHomeNo);
         EBHomeHook(cls, @"preprodServiceVLPSegmentation", (IMP)EBHomeNo);
     }
 
-    // The old app can still decide the user is not in the F90 Home cohort even
-    // when vlpF90 is enabled. Force the actual request and segmentation result.
-    Class request = NSClassFromString(@"_TtC14HomePageModule30HomeVerticalLandingPageRequest");
-    EBHomeHook(request, @"isF90User", (IMP)EBHomeYes);
-    EBHomeHook(request, @"baseURLString", (IMP)EBHomeBaseURL);
+    // Keep the original Home request builder and response model together.
 
-    Class flag = NSClassFromString(@"_TtC14HomePageModule39HomeVerticalLandingPageSegmentationFlag");
-    EBHomeHook(flag, @"isF90UserValue", (IMP)EBHomeYes);
 }
 
 %ctor {

@@ -1,12 +1,9 @@
 # eBayFixer iOS 14
 
-Native compatibility patch for the real eBay 6.96.0 app on rootful iOS 14.
+Compatibility tweak for eBay 6.96.0 on rootful iOS 14.
 
-- Spoofs the app version as 6.273.0 and removes the expired/update-required prompt.
-- Keeps eBay's DCS `1.0.0-seed` config version untouched.
-- Forces the newer VLP/F90 Home flow already built into 6.96.0, including the actual `isF90User` request/segmentation result.
-- Pins the native F90 Home request to eBay's `vertical_landing/v1/get_homepage` service.
-- Forces View Item onto the native `listing_details/v2` / RaptorIO path used by the newer 6.192.0 app.
-- Uses native eBay screens only; there is no web-view fallback.
+Version 1.0.14 tests the original native Home flow instead of redirecting its requests to the newer VLP service. The version/update bypass and diagnostic capture remain enabled.
 
-The fix was derived by comparing the supplied eBay 6.96.0 iOS 14 IPA against the supplied eBay 6.192.0 iOS 16 IPA.
+Build and package validation do not confirm live Home loading. Item loading remains under investigation. Both IPAs still need to be compared; this release is based on the source and supplied logs.
+
+Install the deb from Releases, then fully close and reopen eBay. If Home still fails, send the new eBayFixer log and HOME response.

@@ -66,7 +66,7 @@ jobs:
           path: packages/*.deb
           if-no-files-found: error
 
-      - name: Publish release and remove old versions
+      - name: Publish test release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -81,11 +81,6 @@ jobs:
             gh release create "$tag" "$deb" \
               --target "$GITHUB_SHA" \
               --title "eBayFixer ${version}" \
-              --notes "Native iOS 14 compatibility build: spoofs eBay 6.96.0 as 6.273.0, removes the update gate, preserves the DCS schema, enables the VLP Home flow, and moves View Item onto listing_details v2."
+              --notes "Test build for rootful iOS 14: restores the native Home flow and removes the shopping-to-VLP endpoint substitution. Keeps the update bypass and diagnostic capture. Home loading requires device testing; item loading is not fixed by this release."
           fi
 
-          for old in $(gh release list --limit 100 --json tagName --jq '.[].tagName'); do
-            if [ "$old" != "$tag" ]; then
-              gh release delete "$old" --cleanup-tag -y
-            fi
-          done
