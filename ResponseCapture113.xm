@@ -91,7 +91,6 @@ static NSString *EB113SanitizedPreview(NSData *data) {
     NSData *slice = [data subdataWithRange:NSMakeRange(0, max)];
     NSString *text = [[NSString alloc] initWithData:slice encoding:NSUTF8StringEncoding];
     if (!text) return @"<non-UTF8 response>";
-
     text = [text stringByReplacingOccurrencesOfString:@"\n" withString:@" "];
     text = [text stringByReplacingOccurrencesOfString:@"\r" withString:@" "];
     return text;
@@ -108,12 +107,7 @@ static NSString *EB113JSONSummary(NSData *data) {
         NSArray *keys = [[dict allKeys] sortedArrayUsingComparator:^NSComparisonResult(id a, id b) {
             return [[a description] compare:[b description]];
         }];
-        NSMutableArray *interesting = [NSMutableArray array];
-        for (NSString *key in @[@"error", @"errors", @"message", @"status", @"code", @"modules", @"meta", @"warnings"]) {
-            id value = dict[key];
-            if (value) [interesting addObject:[NSString stringWithFormat:@"%@=%@", key, value]];
-        }
-        return [NSString stringWithFormat:@"keys=%@ interesting=%@", keys, interesting];
+        return [NSString stringWithFormat:@"keys=%@", keys];
     }
     if ([json isKindOfClass:[NSArray class]]) {
         return [NSString stringWithFormat:@"array-count=%lu", (unsigned long)[(NSArray *)json count]];
@@ -121,12 +115,70 @@ static NSString *EB113JSONSummary(NSData *data) {
     return [NSString stringWithFormat:@"json-type=%@", NSStringFromClass([json class])];
 }
 
+static NSString *EB113Documents(void) {
+    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
+    return paths.firstObject ?: NSTemporaryDirectory();
+}
+
+static void EB113SaveResponseNamed(NSString *name, NSData *data) {
+    if (!name.length || !data.length) return;
+    [data writeToFile:[EB113Documents() stringByAppendingPathComponent:name] atomically:YES];
+}
+
 static void EB113SaveResponse(NSString *kind, NSData *data) {
     if (!kind.length || !data.length) return;
-    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
-    NSString *dir = paths.firstObject ?: NSTemporaryDirectory();
     NSString *file = [NSString stringWithFormat:@"eBayFixer-%@-response.json", kind];
-    [data writeToFile:[dir stringByAppendingPathComponent:file] atomically:YES];
+    EB113SaveResponseNamed(file, data);
+}
+
+static NSData *EB113AdaptHomeResponse(NSData *data, NSUInteger *adaptedModules) {
+    if (adaptedModules) *adaptedModules = 0;
+    if (!data.length) return data;
+
+    NSError *error = nil;
+    id object = [NSJSONSerialization JSONObjectWithData:data options:NSJSONReadingMutableContainers error:&error];
+    if (![object isKindOfClass:[NSMutableDictionary class]]) return data;
+
+    NSMutableDictionary *root = (NSMutableDictionary *)object;
+    id modulesObject = root[@"modules"];
+    if (![modulesObject isKindOfClass:[NSDictionary class]]) return data;
+
+    NSMutableDictionary *modules = [modulesObject isKindOfClass:[NSMutableDictionary class]] ? modulesObject : [modulesObject mutableCopy];
+    root[@"modules"] = modules;
+
+    NSUInteger changed = 0;
+    for (id key in [modules.allKeys copy]) {
+        id rawModule = modules[key];
+        if (![rawModule isKindOfClass:[NSDictionary class]]) continue;
+
+        NSMutableDictionary *module = [rawModule isKindOfClass:[NSMutableDictionary class]] ? rawModule : [rawModule mutableCopy];
+        NSString *type = [module[@"_type"] isKindOfClass:[NSString class]] ? module[@"_type"] : @"";
+        if (![type isEqualToString:@"NavigationBarModule"]) continue;
+
+        id containersObject = module[@"containers"];
+        if (![containersObject isKindOfClass:[NSArray class]]) continue;
+        NSArray *containers = (NSArray *)containersObject;
+        if (containers.count == 0) continue;
+
+        id first = containers.firstObject;
+        if ([first isKindOfClass:[NSDictionary class]] && first[@"cardContainers"]) continue;
+
+        // eBay 6.96's VLP NavigationBarModuleTransformer reads the legacy
+        // key path "containers.0.cardContainers". Current VLP responses put
+        // CardContainer objects directly in "containers". Wrap the modern
+        // array in the legacy envelope before 6.96 sees the response.
+        module[@"containers"] = @[@{ @"cardContainers": containers }];
+        modules[key] = module;
+        changed++;
+    }
+
+    if (changed == 0) return data;
+
+    NSError *writeError = nil;
+    NSData *adapted = [NSJSONSerialization dataWithJSONObject:root options:0 error:&writeError];
+    if (!adapted.length || writeError) return data;
+    if (adaptedModules) *adaptedModules = changed;
+    return adapted;
 }
 
 typedef void (*EB113DidReceiveDataIMP)(id, SEL, NSURLSession *, NSURLSessionDataTask *, NSData *);
@@ -141,13 +193,17 @@ static void EB113DidReceiveData(id self, SEL _cmd, NSURLSession *session, NSURLS
                 body = [NSMutableData data];
                 objc_setAssociatedObject(task, EB113BodyKey, body, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
             }
-            if (body.length < 256 * 1024) {
-                NSUInteger remaining = (256 * 1024) - body.length;
+            if (body.length < 512 * 1024) {
+                NSUInteger remaining = (512 * 1024) - body.length;
                 NSUInteger amount = MIN(remaining, data.length);
                 [body appendData:[data subdataWithRange:NSMakeRange(0, amount)]];
             }
         }
     }
+
+    // For Home only, hold the modern response until completion so it can be
+    // converted to the 6.96 VLP schema before the real eBay delegate parses it.
+    if ([kind isEqualToString:@"HOME"]) return;
 
     EB113DidReceiveDataIMP original = (EB113DidReceiveDataIMP)EB113OriginalForObject(EB113DataOriginals(), self);
     if (original) original(self, _cmd, session, task, data);
@@ -155,16 +211,31 @@ static void EB113DidReceiveData(id self, SEL _cmd, NSURLSession *session, NSURLS
 
 static void EB113DidComplete(id self, SEL _cmd, NSURLSession *session, NSURLSessionTask *task, NSError *error) {
     NSString *kind = EB113Kind((task.currentRequest ?: task.originalRequest).URL);
+    NSData *body = nil;
     if (kind) {
-        NSData *body = nil;
         @synchronized (task) {
             body = [objc_getAssociatedObject(task, EB113BodyKey) copy];
         }
         NSHTTPURLResponse *http = [task.response isKindOfClass:[NSHTTPURLResponse class]] ? (NSHTTPURLResponse *)task.response : nil;
         EB113Log(@"BODY %@ status=%ld bytes=%lu summary=%@", kind, (long)http.statusCode,
                  (unsigned long)body.length, EB113JSONSummary(body));
-        EB113Log(@"BODY_PREVIEW %@ %@", kind, EB113SanitizedPreview(body));
         EB113SaveResponse(kind, body);
+    }
+
+    if ([kind isEqualToString:@"HOME"] && body.length) {
+        NSUInteger adaptedModules = 0;
+        NSData *adapted = EB113AdaptHomeResponse(body, &adaptedModules);
+        EB113SaveResponseNamed(@"eBayFixer-HOME-adapted.json", adapted);
+        EB113Log(@"HOME_ADAPT modules=%lu rawBytes=%lu adaptedBytes=%lu",
+                 (unsigned long)adaptedModules,
+                 (unsigned long)body.length,
+                 (unsigned long)adapted.length);
+
+        EB113DidReceiveDataIMP originalData = (EB113DidReceiveDataIMP)EB113OriginalForObject(EB113DataOriginals(), self);
+        if (originalData) {
+            SEL dataSel = NSSelectorFromString(@"URLSession:dataTask:didReceiveData:");
+            originalData(self, dataSel, session, (NSURLSessionDataTask *)task, adapted);
+        }
     }
 
     EB113DidCompleteIMP original = (EB113DidCompleteIMP)EB113OriginalForObject(EB113CompleteOriginals(), self);
@@ -233,10 +304,7 @@ static void EB113InstallDelegateHooks(void) {
 
 static void EB113Probe(NSString *className, NSArray *selectors) {
     Class cls = NSClassFromString(className);
-    if (!cls) {
-        EB113Log(@"PROBE class=%@ missing", className);
-        return;
-    }
+    if (!cls) return;
     Class meta = object_getClass(cls);
     for (NSString *selectorName in selectors) {
         SEL sel = NSSelectorFromString(selectorName);
@@ -252,18 +320,8 @@ static void EB113Probe(NSString *className, NSArray *selectors) {
 static void EB113RunProbes(void) {
     EB113Probe(@"_TtC14HomePageModule26ObjCHomePageFeatureToggles",
                @[@"vlpF90", @"vlpF90KillSwitch", @"preprodServiceVLPHomepage", @"preprodServiceVLPSegmentation"]);
-    EB113Probe(@"_TtC14HomePageModule22HomePageFeatureToggles",
-               @[@"vlpF90", @"vlpF90KillSwitch"]);
     EB113Probe(@"_TtC14HomePageModule30HomeVerticalLandingPageRequest",
                @[@"isF90User", @"baseURLString", @"supportedUxComponents"]);
-    EB113Probe(@"_TtC14HomePageModule39HomeVerticalLandingPageSegmentationFlag",
-               @[@"isF90UserValue"]);
-    EB113Probe(@"_TtC14HomePageModule18HomeTabCoordinator",
-               @[@"currentUseCase", @"setCurrentUseCase:", @"vlpFlowController", @"vlpViewController", @"homeViewController"]);
-    EB113Probe(@"_TtC11ItemProduct29ObjCItemProductFeatureToggles",
-               @[@"useViewItemExperienceServiceRaptorIOURL", @"useViewItemExperienceServiceRaptorIOPreviewURL"]);
-    EB113Probe(@"_TtC11ItemProduct25ItemProductFeatureToggles",
-               @[@"useViewItemExperienceServiceRaptorIOURL", @"useViewItemExperienceServiceRaptorIOPreviewURL"]);
 }
 
 %ctor {
