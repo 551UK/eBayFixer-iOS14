@@ -4,9 +4,6 @@ static NSString *const EB114HomePathOld = @"/experience/shopping/v1/home";
 static NSString *const EB114HomePathNew = @"/experience/vertical_landing/v1/get_homepage";
 
 static NSString *EB114SupportedHomeComponents(void) {
-    // Parser-safe VLP set verified to exist in BOTH supplied binaries:
-    // the real eBay 6.96 HomePageModule and the working 6.192 main binary.
-    // Do not advertise old Answers-only/retired names or 6.192-only renderers.
     return @"NAVIGATION_IMAGE_GRID,ITEMS_CAROUSEL,ITEM_CARD_LIST,PAGE_TITLE,MERCH_GRID,NAVIGATION_BAR,COLD_START_TOP_OF_PAGE,TOP_OF_PAGE_WITH_VEHICLE,RECOMMENDED_ACTIONS,CARD_CONTAINERS_CAROUSEL_GROUP,ITEM_CARD_CAROUSEL,USER_GARAGE_MODULE";
 }
 
@@ -27,26 +24,17 @@ static NSURL *EB114NormalizeHomeURL(NSURL *url) {
     NSMutableArray<NSURLQueryItem *> *items = [NSMutableArray array];
     BOOL hasAnswersVersion = NO;
     BOOL hasPage = NO;
-
     for (NSURLQueryItem *item in components.queryItems ?: @[]) {
         NSString *name = item.name ?: @"";
-        if ([name isEqualToString:@"supported_ux_components"] ||
-            [name isEqualToString:@"supportedUxComponentNames"]) {
-            continue;
-        }
+        if ([name isEqualToString:@"supported_ux_components"] || [name isEqualToString:@"supportedUxComponentNames"]) continue;
         if ([name isEqualToString:@"answersVersion"]) hasAnswersVersion = YES;
         if ([name isEqualToString:@"_pgn"]) hasPage = YES;
         [items addObject:item];
     }
-
-    // Keep these two legacy fields for this controlled test. They are accepted
-    // by the VLP service (HTTP 200) and changing them at the same time would
-    // make it harder to isolate the actual compatibility issue.
     if (!hasAnswersVersion) [items addObject:[NSURLQueryItem queryItemWithName:@"answersVersion" value:@"1"]];
     if (!hasPage) [items addObject:[NSURLQueryItem queryItemWithName:@"_pgn" value:@"all"]];
     [items addObject:[NSURLQueryItem queryItemWithName:@"supported_ux_components" value:EB114SupportedHomeComponents()]];
     components.queryItems = items;
-
     return components.URL ?: url;
 }
 
@@ -59,20 +47,22 @@ static NSURLRequest *EB114NormalizeHomeRequest(NSURLRequest *request) {
     return copy ?: request;
 }
 
-%hook NSURLSession
+%hook NSMutableURLRequest
+- (void)setURL:(NSURL *)URL {
+    %orig(EB114NormalizeHomeURL(URL));
+}
+%end
 
+%hook NSURLSession
 - (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request completionHandler:(void (^)(NSData *, NSURLResponse *, NSError *))handler {
     return %orig(EB114NormalizeHomeRequest(request), handler);
 }
-
 - (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request {
     return %orig(EB114NormalizeHomeRequest(request));
 }
-
 - (NSURLSessionUploadTask *)uploadTaskWithRequest:(NSURLRequest *)request fromData:(NSData *)bodyData completionHandler:(void (^)(NSData *, NSURLResponse *, NSError *))handler {
     return %orig(EB114NormalizeHomeRequest(request), bodyData, handler);
 }
-
 %end
 
 %ctor {
