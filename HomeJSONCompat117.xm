@@ -121,10 +121,99 @@ static NSDictionary *EB117AdaptHome(NSDictionary *root, NSUInteger *navChanged, 
     return mutableRoot;
 }
 
+static BOOL EB123DataContains(NSData *data, NSString *needle) {
+    if (!data.length || !needle.length) return NO;
+    NSData *bytes = [needle dataUsingEncoding:NSUTF8StringEncoding];
+    if (!bytes.length || bytes.length > data.length) return NO;
+    return [data rangeOfData:bytes options:0 range:NSMakeRange(0, data.length)].location != NSNotFound;
+}
+
+static BOOL EB123IsF90Key(NSString *value) {
+    return [value isEqualToString:@"homescreen.vlpF90"];
+}
+
+static BOOL EB123IsKillKey(NSString *value) {
+    return [value isEqualToString:@"homescreen.vlpF90KillSwitch"];
+}
+
+static void EB123SetToggleRecord(NSMutableDictionary *dict, BOOL enabled, NSUInteger *patched) {
+    BOOL changed = NO;
+    NSArray *fields = @[@"value", @"defaultValue", @"boolValue", @"enabled", @"isEnabled", @"remoteValue", @"overrideValue"];
+    for (NSString *field in fields) {
+        if (dict[field] != nil) {
+            dict[field] = @(enabled);
+            changed = YES;
+        }
+    }
+    if (!changed) dict[@"value"] = @(enabled);
+    if (patched) (*patched)++;
+}
+
+static id EB123PatchFeatureConfig(id value, NSUInteger *patched) {
+    if ([value isKindOfClass:[NSDictionary class]]) {
+        NSDictionary *source = (NSDictionary *)value;
+        NSMutableDictionary *out = [source mutableCopy];
+
+        for (NSString *key in [out.allKeys copy]) {
+            if (![key isKindOfClass:[NSString class]]) continue;
+            if (EB123IsF90Key(key)) {
+                out[key] = @YES;
+                if (patched) (*patched)++;
+            } else if (EB123IsKillKey(key)) {
+                out[key] = @NO;
+                if (patched) (*patched)++;
+            }
+        }
+
+        NSString *recordKey = nil;
+        for (NSString *candidate in @[@"key", @"name", @"identifier", @"id"]) {
+            id candidateValue = out[candidate];
+            if ([candidateValue isKindOfClass:[NSString class]]) {
+                NSString *stringValue = (NSString *)candidateValue;
+                if (EB123IsF90Key(stringValue) || EB123IsKillKey(stringValue)) {
+                    recordKey = stringValue;
+                    break;
+                }
+            }
+        }
+        if (recordKey) EB123SetToggleRecord(out, EB123IsF90Key(recordKey), patched);
+
+        for (id key in [out.allKeys copy]) {
+            id child = out[key];
+            id patchedChild = EB123PatchFeatureConfig(child, patched);
+            if (patchedChild) out[key] = patchedChild;
+        }
+        return out;
+    }
+
+    if ([value isKindOfClass:[NSArray class]]) {
+        NSMutableArray *out = [NSMutableArray arrayWithCapacity:[(NSArray *)value count]];
+        for (id child in (NSArray *)value) {
+            id patchedChild = EB123PatchFeatureConfig(child, patched);
+            [out addObject:patchedChild ?: [NSNull null]];
+        }
+        return out;
+    }
+
+    return value;
+}
+
 %hook NSJSONSerialization
 
 + (id)JSONObjectWithData:(NSData *)data options:(NSJSONReadingOptions)opt error:(NSError **)error {
     id object = %orig;
+    if (!object) return object;
+
+    BOOL mayContainHomeToggle = EB123DataContains(data, @"vlpF90") || EB123DataContains(data, @"vlpF90KillSwitch");
+    if (mayContainHomeToggle) {
+        NSUInteger patched = 0;
+        id patchedObject = EB123PatchFeatureConfig(object, &patched);
+        if (patched > 0) {
+            object = patchedObject ?: object;
+            EB117Log([NSString stringWithFormat:@"HOME_DCS_TOGGLE patched=%lu", (unsigned long)patched]);
+        }
+    }
+
     if (![object isKindOfClass:[NSDictionary class]]) return object;
     if (!EB117IsHomeVLP((NSDictionary *)object)) return object;
 
@@ -136,6 +225,44 @@ static NSDictionary *EB117AdaptHome(NSDictionary *root, NSUInteger *navChanged, 
               (unsigned long)removed,
               (unsigned long)[[adapted objectForKey:@"modules"] count]]);
     return adapted ?: object;
+}
+
+%end
+
+%hook NSUserDefaults
+
+- (BOOL)boolForKey:(NSString *)defaultName {
+    if (EB123IsF90Key(defaultName)) {
+        EB117Log(@"HOME_DEFAULTS_READ homescreen.vlpF90 -> 1");
+        return YES;
+    }
+    if (EB123IsKillKey(defaultName)) {
+        EB117Log(@"HOME_DEFAULTS_READ homescreen.vlpF90KillSwitch -> 0");
+        return NO;
+    }
+    NSString *lower = defaultName.lowercaseString ?: @"";
+    if ([lower containsString:@"vlp"] || [lower containsString:@"verticallanding"]) {
+        EB117Log([NSString stringWithFormat:@"HOME_DEFAULTS_READ observed=%@", defaultName ?: @"(nil)"]);
+    }
+    return %orig;
+}
+
+- (void)setBool:(BOOL)value forKey:(NSString *)defaultName {
+    if (EB123IsF90Key(defaultName)) {
+        EB117Log(@"HOME_DEFAULTS_WRITE homescreen.vlpF90 forced=1");
+        %orig(YES, defaultName);
+        return;
+    }
+    if (EB123IsKillKey(defaultName)) {
+        EB117Log(@"HOME_DEFAULTS_WRITE homescreen.vlpF90KillSwitch forced=0");
+        %orig(NO, defaultName);
+        return;
+    }
+    NSString *lower = defaultName.lowercaseString ?: @"";
+    if ([lower containsString:@"vlp"] || [lower containsString:@"verticallanding"]) {
+        EB117Log([NSString stringWithFormat:@"HOME_DEFAULTS_WRITE observed=%@ value=%d", defaultName ?: @"(nil)", value]);
+    }
+    %orig;
 }
 
 %end
