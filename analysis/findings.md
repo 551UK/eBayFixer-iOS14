@@ -1,1 +1,0 @@
-Temporary comparison notes will be replaced by final source.
