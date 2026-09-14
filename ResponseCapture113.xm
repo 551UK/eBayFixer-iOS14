@@ -243,6 +243,8 @@ static void EB113RunProbes(void) {
                @[@"isF90User", @"baseURLString", @"supportedUxComponents"]);
     EB113Probe(@"_TtC14HomePageModule39HomeVerticalLandingPageSegmentationFlag",
                @[@"isF90UserValue"]);
+    EB113Probe(@"_TtC14HomePageModule18HomeTabCoordinator",
+               @[@"currentUseCase", @"setCurrentUseCase:", @"vlpFlowController", @"vlpViewController", @"homeViewController"]);
     EB113Probe(@"_TtC11ItemProduct29ObjCItemProductFeatureToggles",
                @[@"useViewItemExperienceServiceRaptorIOURL", @"useViewItemExperienceServiceRaptorIOPreviewURL"]);
     EB113Probe(@"_TtC11ItemProduct25ItemProductFeatureToggles",
