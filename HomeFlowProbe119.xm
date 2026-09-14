@@ -42,11 +42,23 @@ static NSString *EB119Key(Class cls, SEL sel) {
     return [NSString stringWithFormat:@"%@::%@", NSStringFromClass(cls), NSStringFromSelector(sel)];
 }
 
+static NSValue *EB119ValueForIMP(IMP imp) {
+    if (!imp) return nil;
+    return [NSValue value:&imp withObjCType:@encode(IMP)];
+}
+
+static IMP EB119IMPFromValue(NSValue *value) {
+    if (!value) return NULL;
+    IMP imp = NULL;
+    [value getValue:&imp];
+    return imp;
+}
+
 static IMP EB119Original(id self, SEL sel) {
     Class cls = object_getClass(self);
     while (cls) {
-        NSValue *value = EB119Originals()[EB119Key(cls, sel)];
-        if (value) return [value pointerValue];
+        IMP imp = EB119IMPFromValue(EB119Originals()[EB119Key(cls, sel)]);
+        if (imp) return imp;
         cls = class_getSuperclass(cls);
     }
     return NULL;
@@ -78,7 +90,8 @@ static void EB119HookSelector(Class cls, SEL sel, IMP replacement) {
     if (!method) return;
     IMP old = NULL;
     MSHookMessageEx(cls, sel, replacement, &old);
-    if (old) EB119Originals()[key] = [NSValue valueWithPointer:old];
+    NSValue *value = EB119ValueForIMP(old);
+    if (value) EB119Originals()[key] = value;
 }
 
 static void EB119ProbeClass(NSString *name) {
@@ -138,12 +151,9 @@ static void EB119Install(void) {
     }
 }
 
-%ctor {
-    @autoreleasepool {
-        if (![[[NSBundle mainBundle] bundleIdentifier] isEqualToString:@"com.ebay.iphone"]) return;
-        for (NSNumber *delay in @[@0.1, @0.5, @1.0, @2.0, @4.0, @8.0]) {
-            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)),
-                           dispatch_get_main_queue(), ^{ EB119Install(); });
-        }
+static void EB119ScheduleInstall(void) {
+    for (NSNumber *delay in @[@0.1, @0.5, @1.0, @2.0, @4.0, @8.0]) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)),
+                       dispatch_get_main_queue(), ^{ EB119Install(); });
     }
 }
