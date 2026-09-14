@@ -1,0 +1,73 @@
+name: Build eBayFixer rootful
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ebayfixer-rootful-release
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Theos
+        uses: Randomblock1/theos-action@v1
+        with:
+          theos-sdks: https://github.com/theos/sdks
+          theos-sdks-branch: master
+
+      - name: Build rootful package
+        run: |
+          chmod 755 layout/DEBIAN/postinst
+          make clean package FINALPACKAGE=1
+
+      - name: Validate package
+        run: |
+          set -euo pipefail
+          brew install dpkg
+          debs=(packages/*.deb)
+          test "${#debs[@]}" -eq 1
+          dpkg-deb -f "${debs[0]}" Package | grep -qx 'com.551.ebayfixer'
+          dpkg-deb -f "${debs[0]}" Architecture | grep -qx 'iphoneos-arm'
+          dpkg-deb -x "${debs[0]}" "$RUNNER_TEMP/ebayfixer-check"
+          test -s "$RUNNER_TEMP/ebayfixer-check/Library/MobileSubstrate/DynamicLibraries/eBayFixer.dylib"
+          test -s "$RUNNER_TEMP/ebayfixer-check/Library/MobileSubstrate/DynamicLibraries/eBayFixer.plist"
+          xcrun lipo "$RUNNER_TEMP/ebayfixer-check/Library/MobileSubstrate/DynamicLibraries/eBayFixer.dylib" -verify_arch arm64 arm64e
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: eBayFixer-rootful
+          path: packages/*.deb
+          if-no-files-found: error
+
+      - name: Publish release and remove old versions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version="$(sed -n 's/^Version: //p' control)"
+          tag="v${version}"
+          deb="$(find packages -maxdepth 1 -name '*.deb' -print -quit)"
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "$deb" --clobber
+          else
+            gh release create "$tag" "$deb" \
+              --target "$GITHUB_SHA" \
+              --title "eBayFixer ${version}" \
+              --notes "First native iOS 14 compatibility build. Removes the expired-version prompt, separates public/DCS/backend version identity, and forces View Item onto listing_details v2."
+          fi
+
+          for old in $(gh release list --limit 100 --json tagName --jq '.[].tagName'); do
+            if [ "$old" != "$tag" ]; then
+              gh release delete "$old" --cleanup-tag -y
+            fi
+          done
