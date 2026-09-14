@@ -109,12 +109,10 @@ static void EB118Install(void) {
         installed = YES;
     }
 
-    if (!installed) {
-        EB118Log(@"HOME_STATE_FORCE no ObjC-accessible isHomeVLPEnabled accessor");
-    }
+    if (!installed) EB118Log(@"HOME_STATE_FORCE no ObjC-accessible isHomeVLPEnabled accessor");
 }
 
-%ctor {
+__attribute__((constructor)) static void EB118Ctor(void) {
     @autoreleasepool {
         if (![[[NSBundle mainBundle] bundleIdentifier] isEqualToString:@"com.ebay.iphone"]) return;
         for (NSNumber *delay in @[@0.1, @0.5, @1.0, @2.0, @4.0, @8.0]) {
