@@ -2,7 +2,6 @@
 #import <objc/runtime.h>
 #import <substrate.h>
 
-
 static NSMutableSet *EBHomeInstalledHooks(void) {
     static NSMutableSet *set;
     static dispatch_once_t onceToken;
@@ -37,21 +36,20 @@ static void EBInstallHomeCompat(void) {
 
     for (NSString *name in toggleClasses) {
         Class cls = NSClassFromString(name);
-        EBHomeHook(cls, @"vlpF90", (IMP)EBHomeNo);
-        EBHomeHook(cls, @"vlpF90KillSwitch", (IMP)EBHomeYes);
+        // 6.96 exports these selectors on ObjCHomePageFeatureToggles.
+        // Enable its native F90 / Vertical Landing path and disable the old kill switch.
+        EBHomeHook(cls, @"vlpF90", (IMP)EBHomeYes);
+        EBHomeHook(cls, @"vlpF90KillSwitch", (IMP)EBHomeNo);
         EBHomeHook(cls, @"preprodServiceVLPHomepage", (IMP)EBHomeNo);
         EBHomeHook(cls, @"preprodServiceVLPSegmentation", (IMP)EBHomeNo);
     }
-
-    // Keep the original Home request builder and response model together.
-
 }
 
 %ctor {
     @autoreleasepool {
         if (![[[NSBundle mainBundle] bundleIdentifier] isEqualToString:@"com.ebay.iphone"]) return;
         EBInstallHomeCompat();
-        for (NSNumber *delay in @[@0.1, @0.25, @0.75, @1.5, @3.0, @5.0]) {
+        for (NSNumber *delay in @[@0.1, @0.25, @0.75, @1.5, @3.0, @5.0, @8.0]) {
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)),
                            dispatch_get_main_queue(), ^{ EBInstallHomeCompat(); });
         }
