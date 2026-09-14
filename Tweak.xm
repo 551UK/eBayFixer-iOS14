@@ -216,10 +216,10 @@ static void EBPrepareMutableRequest(NSMutableURLRequest *request) {
 
 static NSURLRequest *EBPrepareRequest(NSURLRequest *request) {
     if (!request || !EBIsEBayHost(request.URL.host)) return request;
-    NSMutableURLRequest *mutable = [request mutableCopy];
-    if (!mutable) return request;
-    EBPrepareMutableRequest(mutable);
-    return mutable;
+    NSMutableURLRequest *mutableRequest = [request mutableCopy];
+    if (!mutableRequest) return request;
+    EBPrepareMutableRequest(mutableRequest);
+    return mutableRequest;
 }
 
 static void EBLogResponse(NSURLResponse *response, NSError *error, NSUInteger bytes, NSURL *fallbackURL) {
