@@ -1,13 +1,13 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
-#import <WebKit/WebKit.h>
 #import <objc/runtime.h>
+#import <substrate.h>
 
 static NSString *const EBTargetBundleID = @"com.ebay.iphone";
 static NSString *const EBTargetVersion = @"6.273.0";
 static NSString *const EBOriginalVersion = @"6.96.0";
 
-#pragma mark - Small diagnostic log
+#pragma mark - Focused diagnostic log
 
 static NSString *EBLogPath(void) {
     static NSString *path;
@@ -40,10 +40,12 @@ static void EBLog(NSString *format, ...) {
     dispatch_async(EBLogQueue(), ^{
         NSString *line = [NSString stringWithFormat:@"%@ %@\n", [NSDate date], message];
         NSData *data = [line dataUsingEncoding:NSUTF8StringEncoding];
-        if (![[NSFileManager defaultManager] fileExistsAtPath:EBLogPath()]) {
-            [[NSFileManager defaultManager] createFileAtPath:EBLogPath() contents:nil attributes:nil];
+        if (!data) return;
+        NSString *path = EBLogPath();
+        if (![[NSFileManager defaultManager] fileExistsAtPath:path]) {
+            [[NSFileManager defaultManager] createFileAtPath:path contents:nil attributes:nil];
         }
-        NSFileHandle *handle = [NSFileHandle fileHandleForWritingAtPath:EBLogPath()];
+        NSFileHandle *handle = [NSFileHandle fileHandleForWritingAtPath:path];
         if (!handle) return;
         @try {
             [handle seekToEndOfFile];
@@ -53,7 +55,7 @@ static void EBLog(NSString *format, ...) {
     });
 }
 
-#pragma mark - Helpers
+#pragma mark - URL / version helpers
 
 static BOOL EBIsEBayHost(NSString *host) {
     if (![host isKindOfClass:[NSString class]] || host.length == 0) return NO;
@@ -73,7 +75,6 @@ static BOOL EBIsDCSURL(NSURL *url) {
 static BOOL EBIsViewItemURL(NSURL *url) {
     NSString *path = url.path.lowercaseString ?: @"";
     return [path containsString:@"listing_details"] ||
-           [path containsString:@"listingdetails"] ||
            [path containsString:@"view_item"] ||
            [path containsString:@"module_provider"];
 }
@@ -83,8 +84,7 @@ static BOOL EBIsHomeURL(NSURL *url) {
     return [path containsString:@"/experience/shopping/v1/home"] ||
            [path containsString:@"vertical_landing"] ||
            [path containsString:@"bullseye"] ||
-           [path containsString:@"homepage"] ||
-           [path containsString:@"home_screen"];
+           [path containsString:@"homepage"];
 }
 
 static BOOL EBIsSearchURL(NSURL *url) {
@@ -112,7 +112,6 @@ static NSString *EBSafeURL(NSURL *url) {
 
 static NSString *EBRewriteVersionText(NSString *value) {
     if (![value isKindOfClass:[NSString class]] || value.length == 0) return value;
-
     NSString *out = value;
     for (NSString *old in @[EBOriginalVersion, @"6.267.0", @"6.272.0"]) {
         out = [out stringByReplacingOccurrencesOfString:old withString:EBTargetVersion];
@@ -122,8 +121,8 @@ static NSString *EBRewriteVersionText(NSString *value) {
 
 static BOOL EBIsAppVersionHeader(NSString *field) {
     NSString *f = field.lowercaseString ?: @"";
-    // Keep this exact. Apollo's apollographql-client-version is the Apollo
-    // library version, not the eBay app version.
+    // Do not touch Apollo's apollographql-client-version. That identifies the
+    // Apollo library, not the eBay application.
     return [f isEqualToString:@"x-ebay-mobile-app-version"] ||
            [f isEqualToString:@"x-ebay-app-version"];
 }
@@ -134,8 +133,7 @@ static NSString *EBRewriteHeaderValue(NSString *field, NSString *value) {
 
     NSString *f = field.lowercaseString ?: @"";
     if ([f isEqualToString:@"user-agent"] ||
-        [f isEqualToString:@"x-ebay-mobile-app-info"] ||
-        [f isEqualToString:@"x-ebay-c-version"]) {
+        [f isEqualToString:@"x-ebay-mobile-app-info"]) {
         return EBRewriteVersionText(value);
     }
     return value;
@@ -143,7 +141,6 @@ static NSString *EBRewriteHeaderValue(NSString *field, NSString *value) {
 
 static NSDictionary *EBRewriteHeaders(NSDictionary *headers, NSURL *url) {
     if (![headers isKindOfClass:[NSDictionary class]] || !EBIsEBayHost(url.host)) return headers;
-
     NSMutableDictionary *out = [headers mutableCopy];
     for (id rawKey in [out.allKeys copy]) {
         if (![rawKey isKindOfClass:[NSString class]]) continue;
@@ -152,7 +149,6 @@ static NSDictionary *EBRewriteHeaders(NSDictionary *headers, NSURL *url) {
         if (![rawValue isKindOfClass:[NSString class]]) continue;
         out[key] = EBRewriteHeaderValue(key, (NSString *)rawValue);
     }
-
     out[@"X-EBAY-MOBILE-APP-VERSION"] = EBTargetVersion;
     return out;
 }
@@ -163,8 +159,10 @@ static NSURL *EBRewriteURL(NSURL *url) {
     NSString *original = url.absoluteString ?: @"";
     NSString *rewritten = EBRewriteVersionText(original);
 
-    // 6.96.0 already contains eBay's v2 View Item implementation, but still
-    // carries v1 URLs behind feature toggles. 6.192.0 only uses the v2 paths.
+    // IPA comparison: 6.96.0 contains both View Item v1 and v2; 6.192.0 no
+    // longer contains the v1 listing-details endpoints. The feature-toggle hook
+    // below selects 6.96.0's own v2 implementation. These replacements are only
+    // a safety net in case a legacy request builder still emits v1.
     rewritten = [rewritten stringByReplacingOccurrencesOfString:@"/experience/listing_details/v1/view_item"
                                                      withString:@"/experience/listing_details/v2/view_item"];
     rewritten = [rewritten stringByReplacingOccurrencesOfString:@"/experience/listing_details/v1/module_provider"
@@ -172,11 +170,14 @@ static NSURL *EBRewriteURL(NSURL *url) {
     rewritten = [rewritten stringByReplacingOccurrencesOfString:@"/experience/listing_details/v1/preview_draft_listing"
                                                      withString:@"/experience/listing_details/v2/preview_draft_listing"];
 
-    // Do NOT rewrite eBay's DCS /version/1.0.0-seed/config component. It is a
-    // DCS configuration/schema version, not CFBundleShortVersionString.
+    // IMPORTANT: never rewrite /mobile/dcs/.../version/1.0.0-seed/config.
+    // 1.0.0-seed is eBay's DCS configuration/schema identifier, not the app
+    // CFBundleShortVersionString. The previous experimental tweak changed it.
 
     if ([rewritten isEqualToString:original]) return url;
-    return [NSURL URLWithString:rewritten] ?: url;
+    NSURL *newURL = [NSURL URLWithString:rewritten];
+    if (newURL && EBMarker(newURL)) EBLog(@"URL %@ -> %@", EBSafeURL(url), EBSafeURL(newURL));
+    return newURL ?: url;
 }
 
 static NSData *EBRewriteBody(NSData *body, NSURL *url) {
@@ -194,7 +195,8 @@ static void EBPrepareMutableRequest(NSMutableURLRequest *request) {
     NSURL *newURL = EBRewriteURL(request.URL);
     if (newURL) request.URL = newURL;
 
-    request.allHTTPHeaderFields = EBRewriteHeaders(request.allHTTPHeaderFields ?: @{}, request.URL);
+    NSDictionary *headers = EBRewriteHeaders(request.allHTTPHeaderFields ?: @{}, request.URL);
+    if (headers) request.allHTTPHeaderFields = headers;
 
     NSData *oldBody = request.HTTPBody;
     NSData *newBody = EBRewriteBody(oldBody, request.URL);
@@ -220,8 +222,8 @@ static NSURLRequest *EBPrepareRequest(NSURLRequest *request) {
     return mutable;
 }
 
-static void EBLogResponse(NSURLResponse *response, NSError *error, NSUInteger bytes) {
-    NSURL *url = response.URL;
+static void EBLogResponse(NSURLResponse *response, NSError *error, NSUInteger bytes, NSURL *fallbackURL) {
+    NSURL *url = response.URL ?: fallbackURL;
     NSString *marker = EBMarker(url);
     if (!marker && !error) return;
 
@@ -233,23 +235,29 @@ static void EBLogResponse(NSURLResponse *response, NSError *error, NSUInteger by
           error.localizedDescription ?: @"");
 }
 
-#pragma mark - App identity / update gate
+#pragma mark - App identity / forced-update gate
 
 static BOOL EBIsExpiryAlert(UIViewController *controller) {
     if (![controller isKindOfClass:[UIAlertController class]]) return NO;
     UIAlertController *alert = (UIAlertController *)controller;
     NSString *text = [NSString stringWithFormat:@"%@ %@", alert.title ?: @"", alert.message ?: @""];
-    return [text rangeOfString:@"update required" options:NSCaseInsensitiveSearch].location != NSNotFound ||
-           [text rangeOfString:@"version has expired" options:NSCaseInsensitiveSearch].location != NSNotFound ||
-           [text rangeOfString:@"update ebay" options:NSCaseInsensitiveSearch].location != NSNotFound;
+    NSString *lower = text.lowercaseString;
+
+    if ([lower containsString:@"update required"] ||
+        [lower containsString:@"version has expired"] ||
+        [lower containsString:@"unsupported version"] ||
+        [lower containsString:@"update ebay"]) return YES;
+
+    return [lower containsString:@"ebay"] &&
+           [lower containsString:@"update"] &&
+           ([lower containsString:@"version"] || [lower containsString:@"latest"]);
 }
 
 %hook NSBundle
+
 - (id)objectForInfoDictionaryKey:(NSString *)key {
-    if (self == [NSBundle mainBundle]) {
-        if ([key isEqualToString:@"CFBundleShortVersionString"] || [key isEqualToString:@"CFBundleDisplayNameVersion"]) {
-            return EBTargetVersion;
-        }
+    if (self == [NSBundle mainBundle] && [key isEqualToString:@"CFBundleShortVersionString"]) {
+        return EBTargetVersion;
     }
     return %orig;
 }
@@ -269,61 +277,146 @@ static BOOL EBIsExpiryAlert(UIViewController *controller) {
     if (copy[@"CFBundleShortVersionString"]) copy[@"CFBundleShortVersionString"] = EBTargetVersion;
     return copy;
 }
+
 %end
 
 %hook UIViewController
+
 - (void)presentViewController:(UIViewController *)controller animated:(BOOL)animated completion:(void (^)(void))completion {
     if (EBIsExpiryAlert(controller)) {
-        EBLog(@"Blocked eBay update/expired-version alert");
+        EBLog(@"Blocked eBay forced-update alert");
         if (completion) completion();
         return;
     }
     %orig;
 }
+
 %end
 
 %hook UIAlertView
+
 - (void)show {
     NSString *text = [NSString stringWithFormat:@"%@ %@", self.title ?: @"", self.message ?: @""];
-    if ([text rangeOfString:@"update required" options:NSCaseInsensitiveSearch].location != NSNotFound ||
-        [text rangeOfString:@"version has expired" options:NSCaseInsensitiveSearch].location != NSNotFound ||
-        [text rangeOfString:@"update ebay" options:NSCaseInsensitiveSearch].location != NSNotFound) {
-        EBLog(@"Blocked legacy eBay update/expired-version alert");
+    NSString *lower = text.lowercaseString;
+    if ([lower containsString:@"update required"] ||
+        [lower containsString:@"version has expired"] ||
+        [lower containsString:@"unsupported version"] ||
+        [lower containsString:@"update ebay"]) {
+        EBLog(@"Blocked legacy eBay forced-update alert");
         return;
     }
     %orig;
 }
+
 %end
 
-#pragma mark - Force newer native flows already present in 6.96.0
+#pragma mark - Native feature paths found by comparing 6.96.0 and 6.192.0
 
-%hook _TtC11ItemProduct29ObjCItemProductFeatureToggles
-- (BOOL)useViewItemExperienceServiceRaptorIOURL {
-    return YES;
-}
-- (BOOL)useViewItemExperienceServiceRaptorIOPreviewURL {
-    return YES;
-}
-%end
+// The relevant Swift frameworks may not be loaded at tweak initialization time.
+// Hook them dynamically and retry after launch instead of relying on static Logos
+// hooks silently resolving a nil class.
 
-%hook _TtC14HomePageModule26ObjCHomePageFeatureToggles
-- (BOOL)vlpF90 {
+static NSMutableSet *EBInstalledFeatureHooks(void) {
+    static NSMutableSet *set;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{ set = [NSMutableSet set]; });
+    return set;
+}
+
+static BOOL EBForcedYES(id self, SEL _cmd) {
     return YES;
 }
-- (BOOL)vlpF90KillSwitch {
+
+static BOOL EBForcedNO(id self, SEL _cmd) {
     return NO;
 }
-- (BOOL)preprodServiceVLPHomepage {
-    return NO;
+
+static BOOL EBHookBoolSelector(Class cls, NSString *selectorName, BOOL value) {
+    if (!cls || selectorName.length == 0) return NO;
+    SEL selector = NSSelectorFromString(selectorName);
+    Method method = class_getInstanceMethod(cls, selector);
+    if (!method) return NO;
+
+    NSString *key = [NSString stringWithFormat:@"%@::%@", NSStringFromClass(cls), selectorName];
+    @synchronized (EBInstalledFeatureHooks()) {
+        if ([EBInstalledFeatureHooks() containsObject:key]) return YES;
+        MSHookMessageEx(cls, selector, (IMP)(value ? EBForcedYES : EBForcedNO), NULL);
+        [EBInstalledFeatureHooks() addObject:key];
+    }
+    EBLog(@"HOOK %@ %@ -> %@", NSStringFromClass(cls), selectorName, value ? @"YES" : @"NO");
+    return YES;
 }
-- (BOOL)preprodServiceVLPSegmentation {
-    return NO;
+
+static BOOL EBHookFirstMatchingClass(NSArray<NSString *> *classNames, NSString *selectorName, BOOL value) {
+    BOOL found = NO;
+    for (NSString *className in classNames) {
+        Class cls = NSClassFromString(className);
+        if (EBHookBoolSelector(cls, selectorName, value)) found = YES;
+    }
+    return found;
 }
+
+static void EBInstallNativeFeatureHooks(void) {
+    // Home: old 6.96.0 has both the retired Bullseye path and eBay's newer
+    // Vertical Landing Page flow. 6.192.0 retains homescreen.vlpF90 but no
+    // longer contains the old Bullseye service URL. Force the newer native path.
+    NSArray *homeClasses = @[
+        @"_TtC14HomePageModule26ObjCHomePageFeatureToggles",
+        @"ObjCHomePageFeatureToggles",
+        @"_TtC14HomePageModule22HomePageFeatureToggles",
+        @"HomePageFeatureToggles"
+    ];
+    BOOL home = NO;
+    home |= EBHookFirstMatchingClass(homeClasses, @"vlpF90", YES);
+    home |= EBHookFirstMatchingClass(homeClasses, @"vlpF90KillSwitch", NO);
+    EBHookFirstMatchingClass(homeClasses, @"preprodServiceVLPHomepage", NO);
+    EBHookFirstMatchingClass(homeClasses, @"preprodServiceVLPSegmentation", NO);
+
+    // View Item: 6.96.0 contains v1 and v2 implementations. The 6.192.0 IPA
+    // contains listing_details/v2 and no v1 endpoint. Force the old app to use
+    // its own RaptorIO/VIES v2 implementation so response parsing matches v2.
+    NSArray *itemClasses = @[
+        @"_TtC11ItemProduct29ObjCItemProductFeatureToggles",
+        @"ObjCItemProductFeatureToggles",
+        @"_TtC11ItemProduct25ItemProductFeatureToggles",
+        @"ItemProductFeatureToggles"
+    ];
+    BOOL item = NO;
+    item |= EBHookFirstMatchingClass(itemClasses, @"useViewItemExperienceServiceRaptorIOURL", YES);
+    item |= EBHookFirstMatchingClass(itemClasses, @"useViewItemExperienceServiceRaptorIOPreviewURL", YES);
+
+    EBLog(@"Native feature scan home=%@ item=%@", home ? @"found" : @"not-yet-loaded", item ? @"found" : @"not-yet-loaded");
+}
+
+static void EBScheduleFeatureHookScans(void) {
+    EBInstallNativeFeatureHooks();
+    for (NSNumber *delayValue in @[@0.25, @1.0, @2.5, @5.0]) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delayValue.doubleValue * NSEC_PER_SEC)),
+                       dispatch_get_main_queue(), ^{
+            EBInstallNativeFeatureHooks();
+        });
+    }
+}
+
+%hook NSBundle
+
+- (BOOL)load {
+    BOOL result = %orig;
+    if (result && self.bundlePath.length &&
+        ([self.bundlePath containsString:@"HomePageModule.framework"] ||
+         [self.bundlePath containsString:@"ItemProduct.framework"])) {
+        EBLog(@"Loaded framework %@", self.bundlePath.lastPathComponent);
+        EBInstallNativeFeatureHooks();
+    }
+    return result;
+}
+
 %end
 
 #pragma mark - eBay request builders
 
 %hook NSMutableURLRequest
+
 - (void)setURL:(NSURL *)URL {
     %orig(EBRewriteURL(URL));
 }
@@ -351,9 +444,11 @@ static BOOL EBIsExpiryAlert(UIViewController *controller) {
     }
     %orig;
 }
+
 %end
 
 %hook NSURLSessionConfiguration
+
 - (void)setHTTPAdditionalHeaders:(NSDictionary *)headers {
     NSMutableDictionary *copy = [headers mutableCopy];
     for (id rawKey in [copy.allKeys copy]) {
@@ -365,33 +460,40 @@ static BOOL EBIsExpiryAlert(UIViewController *controller) {
     }
     %orig(copy ?: headers);
 }
+
 %end
 
 %hook APIRequest
+
 - (void)addStandardHeadersWithUrlRequest:(NSMutableURLRequest *)request {
     %orig;
     EBPrepareMutableRequest(request);
 }
+
 - (void)configureURLRequestHeaders:(NSMutableURLRequest *)request {
     %orig;
     EBPrepareMutableRequest(request);
 }
+
 %end
 
 %hook EBayRequest
+
 - (void)configureURLRequestHeaders:(NSMutableURLRequest *)request {
     %orig;
     EBPrepareMutableRequest(request);
 }
+
 %end
 
-#pragma mark - Foundation networking
+#pragma mark - Foundation networking send boundary
 
 %hook NSURLSession
+
 - (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request completionHandler:(void (^)(NSData *, NSURLResponse *, NSError *))completionHandler {
     NSURLRequest *prepared = EBPrepareRequest(request);
     void (^wrapped)(NSData *, NSURLResponse *, NSError *) = ^(NSData *data, NSURLResponse *response, NSError *error) {
-        EBLogResponse(response, error, data.length);
+        EBLogResponse(response, error, data.length, prepared.URL);
         if (completionHandler) completionHandler(data, response, error);
     };
     return %orig(prepared, wrapped);
@@ -405,47 +507,18 @@ static BOOL EBIsExpiryAlert(UIViewController *controller) {
     NSURLRequest *prepared = EBPrepareRequest(request);
     NSData *body = EBRewriteBody(bodyData, prepared.URL);
     void (^wrapped)(NSData *, NSURLResponse *, NSError *) = ^(NSData *data, NSURLResponse *response, NSError *error) {
-        EBLogResponse(response, error, data.length);
+        EBLogResponse(response, error, data.length, prepared.URL);
         if (completionHandler) completionHandler(data, response, error);
     };
     return %orig(prepared, body, wrapped);
 }
 
-- (NSURLSessionDownloadTask *)downloadTaskWithRequest:(NSURLRequest *)request completionHandler:(void (^)(NSURL *, NSURLResponse *, NSError *))completionHandler {
-    NSURLRequest *prepared = EBPrepareRequest(request);
-    void (^wrapped)(NSURL *, NSURLResponse *, NSError *) = ^(NSURL *location, NSURLResponse *response, NSError *error) {
-        EBLogResponse(response, error, 0);
-        if (completionHandler) completionHandler(location, response, error);
-    };
-    return %orig(prepared, wrapped);
-}
-%end
-
-%hook NSURLConnection
-- (instancetype)initWithRequest:(NSURLRequest *)request delegate:(id)delegate startImmediately:(BOOL)startImmediately {
-    return %orig(EBPrepareRequest(request), delegate, startImmediately);
-}
-
-+ (void)sendAsynchronousRequest:(NSURLRequest *)request queue:(NSOperationQueue *)queue completionHandler:(void (^)(NSURLResponse *, NSData *, NSError *))handler {
-    NSURLRequest *prepared = EBPrepareRequest(request);
-    void (^wrapped)(NSURLResponse *, NSData *, NSError *) = ^(NSURLResponse *response, NSData *data, NSError *error) {
-        EBLogResponse(response, error, data.length);
-        if (handler) handler(response, data, error);
-    };
-    %orig(prepared, queue, wrapped);
-}
-%end
-
-%hook WKWebView
-- (WKNavigation *)loadRequest:(NSURLRequest *)request {
-    return %orig(EBPrepareRequest(request));
-}
 %end
 
 %ctor {
     @autoreleasepool {
-        if (![[NSBundle mainBundle].bundleIdentifier isEqualToString:EBTargetBundleID]) return;
-        [[NSFileManager defaultManager] removeItemAtPath:EBLogPath() error:nil];
-        EBLog(@"eBayFixer loaded: native 6.96.0 -> app identity %@; DCS schema preserved; VLP Home + View Item v2 enabled.", EBTargetVersion);
+        if (![[[NSBundle mainBundle] bundleIdentifier] isEqualToString:EBTargetBundleID]) return;
+        EBLog(@"Loaded: real code 6.96.0, outward app version %@, iOS %@", EBTargetVersion, [UIDevice currentDevice].systemVersion);
+        EBScheduleFeatureHookScans();
     }
 }
