@@ -1,0 +1,9 @@
+Package: com.551.ebayfixer
+Name: eBayFixer iOS 14
+Version: 1.0.0
+Architecture: iphoneos-arm
+Description: Native eBay compatibility fix for the legacy iOS 14 app.
+Maintainer: 551UK
+Author: 551UK
+Section: Tweaks
+Depends: mobilesubstrate
