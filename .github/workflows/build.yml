@@ -25,9 +25,27 @@ jobs:
           theos-sdks-branch: master
 
       - name: Build rootful package
+        id: compile
+        shell: bash
         run: |
           chmod 755 layout/DEBIAN/postinst
-          make clean package FINALPACKAGE=1
+          set +e
+          make clean package FINALPACKAGE=1 2>&1 | tee build.log
+          status=${PIPESTATUS[0]}
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Upload compiler log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eBayFixer-build-log
+          path: build.log
+          if-no-files-found: warn
+
+      - name: Stop on compiler failure
+        if: steps.compile.outputs.status != '0'
+        run: exit 1
 
       - name: Validate package
         run: |
