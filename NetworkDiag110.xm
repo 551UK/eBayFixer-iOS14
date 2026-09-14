@@ -29,6 +29,8 @@ static void EB110Log(NSString *format, ...) {
 
 static NSString *EB110Kind(NSURL *url) {
     NSString *path = url.path.lowercaseString ?: @"";
+    NSString *host = url.host.lowercaseString ?: @"";
+    if ([host containsString:@"mobidcsng.ebay.com"] && [path containsString:@"/mobile/dcs/"]) return @"HOME_DCS";
     if ([path containsString:@"/experience/shopping/v1/homepage/user_segmentation"] ||
         [path containsString:@"homepage/user_segmentation"] ||
         ([path containsString:@"vlp"] && [path containsString:@"segmentation"])) return @"HOME_SEGMENTATION";
