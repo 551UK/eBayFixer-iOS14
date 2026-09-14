@@ -1,7 +1,11 @@
 # eBayFixer iOS 14
 
-Native compatibility tweak for eBay 6.96.0 on rootful iOS 14.
+Native compatibility patch for eBay 6.96.0 on rootful iOS 14.
 
-It removes the expired-version prompt, reports 6.273.0 to the app, keeps the legacy DCS configuration compatible with the old binary, uses a newer working backend identity, and routes View Item requests through eBay's v2 listing API.
+- Spoofs the app as eBay 6.273.0 and removes the expired/update-required prompt.
+- Leaves eBay's DCS `1.0.0-seed` config schema untouched.
+- Forces the newer VLP Home flow already present in 6.96.0.
+- Forces View Item onto the v2 listing endpoints used by eBay 6.192.0.
+- Avoids overwriting Apollo's separate `apollographql-client-version` header.
 
-Built for `com.ebay.iphone` on iOS 14.
+Built from a direct comparison of eBay 6.96.0 (iOS 14) and eBay 6.192.0 (iOS 16).
