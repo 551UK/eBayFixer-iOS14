@@ -20,19 +20,3 @@ It also enables the old app's native newer item-service feature path where requi
 
 ### Version checks
 The tweak bypasses the expired/update-required checks and presents a newer app version to the services that require it. DCS is kept on the real **6.96.0** version because newer spoofed DCS versions are rejected by the server.
-
-## Settings
-A native rootful iOS 14 PreferenceLoader page is included with:
-
-- **Enabled** switch
-- **GitHub Repository** link
-- eBay icon in Settings
-
-No respring button is required. After changing the Enabled switch, fully close eBay and open it again.
-
-## Requirements
-
-- Rootful jailbreak
-- iOS 14
-- eBay **6.96.0**
-- PreferenceLoader
