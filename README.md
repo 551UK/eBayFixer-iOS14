@@ -1,10 +1,38 @@
 # eBayFixer iOS 14
 
-Compatibility tweak for **eBay 6.96.0** on rootful iOS 14.
+Compatibility tweak for **eBay 6.96.0** on **rootful iOS 14**.
 
-## Fixes
-- **Home:** moves the retired Home request to eBay's VLP service, forces the 6.96 F90 Home route, and bypasses the stale HomeHotSwapper gate so the native ModelManager actually fetches and publishes the Home feed.
-- **Search / items:** moves old listing-detail requests to the newer v2 endpoints and adds the newer item/variation parameter names expected by the service.
-- Bypasses the old app update/kill-switch checks while keeping DCS on the real 6.96.0 version.
+This project restores the parts of the old eBay app that stopped working after eBay retired or changed several backend services used by 6.96.0.
 
-Settings includes an **Enabled** switch and a link to this GitHub repo. No respring button is needed; fully close and reopen eBay after changing the switch.
+## What it fixes
+
+### Home
+The original Home request used by eBay 6.96.0 no longer works. The tweak moves Home onto eBay's newer Vertical Landing Page service while keeping the old app's expected F90 Home configuration and supported component contract.
+
+The old app also gets stuck behind its `HomeHotSwapper` path, so the Home ViewModel never asks the native ModelManager to fetch and publish the page. The tweak rebinds the original 6.96.0 ViewModel and calls its native ModelManager fetch directly. eBay's own parser, models and UI then render the Home feed normally.
+
+A small compatibility pass removes a few newer nested Home component types that do not exist in the 6.96.0 client.
+
+### Search / item pages
+Search results themselves still use the old app UI, but opening item data relies on retired listing-detail requests. The tweak moves those old v1 listing-detail requests to the newer v2 endpoints and adds the newer `itemId` / `variationId` parameter names while keeping the old parameters in place for compatibility.
+
+It also enables the old app's native newer item-service feature path where required.
+
+### Version checks
+The tweak bypasses the expired/update-required checks and presents a newer app version to the services that require it. DCS is kept on the real **6.96.0** version because newer spoofed DCS versions are rejected by the server.
+
+## Settings
+A native rootful iOS 14 PreferenceLoader page is included with:
+
+- **Enabled** switch
+- **GitHub Repository** link
+- eBay icon in Settings
+
+No respring button is required. After changing the Enabled switch, fully close eBay and open it again.
+
+## Requirements
+
+- Rootful jailbreak
+- iOS 14
+- eBay **6.96.0**
+- PreferenceLoader
