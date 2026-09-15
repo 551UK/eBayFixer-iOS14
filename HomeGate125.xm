@@ -1,4 +1,5 @@
 #import <Foundation/Foundation.h>
+#import "Prefs.h"
 
 static BOOL EB125IsHomeVLPEnabledKey(NSString *key) {
     return [key isKindOfClass:[NSString class]] && [key isEqualToString:@"isHomeVLPEnabled"];
@@ -36,7 +37,7 @@ static BOOL EB125IsHomeVLPEnabledKey(NSString *key) {
 
 %ctor {
     @autoreleasepool {
-        if (![[[NSBundle mainBundle] bundleIdentifier] isEqualToString:@"com.ebay.iphone"]) return;
+        if (![[[NSBundle mainBundle] bundleIdentifier] isEqualToString:@"com.ebay.iphone"] || !EBPrefsEnabled()) return;
         %init;
         [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"isHomeVLPEnabled"];
     }
