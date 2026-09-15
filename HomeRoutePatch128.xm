@@ -1,12 +1,14 @@
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>
 #import <dlfcn.h>
+#import <mach-o/dyld.h>
 #import <substrate.h>
 
 static const uintptr_t EB128InitialRouteOffset = 0x38BD8;
 static const uintptr_t EB128StateRouteOffset = 0x38F08;
 static BOOL EB128Finished = NO;
 static BOOL EB128LoggedStart = NO;
+static BOOL EB128LoggedLocatorFailure = NO;
 
 static NSString *EB128LogPath(void) {
     NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
@@ -41,24 +43,58 @@ static void EB128LogLater(NSString *message) {
     });
 }
 
+static BOOL EB128IsHomeImagePath(const char *path) {
+    if (!path) return NO;
+    return strstr(path, "HomePageModule.framework/HomePageModule") != NULL ||
+           strstr(path, "/HomePageModule.framework/") != NULL;
+}
+
 static void *EB128HomeImageBase(void) {
+    // Primary resolver: find the framework image itself. This is unaffected by
+    // Substrate hooks replacing individual Objective-C method implementations.
+    uint32_t imageCount = _dyld_image_count();
+    for (uint32_t i = 0; i < imageCount; i++) {
+        const char *name = _dyld_get_image_name(i);
+        if (!EB128IsHomeImagePath(name)) continue;
+        const struct mach_header *header = _dyld_get_image_header(i);
+        if (header) {
+            EB128LogLater([NSString stringWithFormat:@"locator=dyld path=%s", name ?: "(null)"]);
+            return (void *)header;
+        }
+    }
+
+    // Fallback resolver: only use selectors that eBayFixer does not hook.
     Class cls = objc_getClass("_TtC14HomePageModule37HomeVerticalLandingPageViewController");
     if (!cls) return NULL;
 
-    Method method = class_getInstanceMethod(cls, @selector(viewDidAppear:));
-    if (!method) method = class_getInstanceMethod(cls, @selector(viewWillAppear:));
-    if (!method) return NULL;
+    NSArray<NSString *> *selectorNames = @[
+        @"shouldShowTitleImageView",
+        @"setupTitleImageView:",
+        @"viewWillAppear:",
+        @"viewDidLayoutSubviews",
+        @"viewDidDisappear:"
+    ];
 
-    IMP imp = method_getImplementation(method);
-    if (!imp) return NULL;
+    for (NSString *selectorName in selectorNames) {
+        SEL selector = NSSelectorFromString(selectorName);
+        Method method = class_getInstanceMethod(cls, selector);
+        if (!method) continue;
+        IMP imp = method_getImplementation(method);
+        if (!imp) continue;
 
-    Dl_info info = {0};
-    if (dladdr((const void *)imp, &info) == 0 || !info.dli_fbase) return NULL;
-    if (info.dli_fname && !strstr(info.dli_fname, "HomePageModule")) {
-        EB128LogLater([NSString stringWithFormat:@"locator_wrong_image path=%s", info.dli_fname]);
-        return NULL;
+        Dl_info info = {0};
+        if (dladdr((const void *)imp, &info) == 0 || !info.dli_fbase) continue;
+        if (!EB128IsHomeImagePath(info.dli_fname)) continue;
+
+        EB128LogLater([NSString stringWithFormat:@"locator=selector %@ path=%s", selectorName, info.dli_fname ?: "(null)"]);
+        return info.dli_fbase;
     }
-    return info.dli_fbase;
+
+    if (!EB128LoggedLocatorFailure) {
+        EB128LoggedLocatorFailure = YES;
+        EB128LogLater(@"locator_failed no_unhooked_HomePageModule_image");
+    }
+    return NULL;
 }
 
 static BOOL EB128Patch4(uint8_t *base,
@@ -92,7 +128,7 @@ static void EB128TryPatch(void) {
 
     if (!EB128LoggedStart) {
         EB128LoggedStart = YES;
-        EB128LogLater(@"start class_locator=VLP.viewDidAppear");
+        EB128LogLater(@"start image_locator=dyld+unhooked_methods");
     }
 
     uint8_t *base = (uint8_t *)EB128HomeImageBase();
@@ -120,7 +156,7 @@ static void EB128TryPatch(void) {
 }
 
 static void EB128ScheduleRetries(void) {
-    NSArray<NSNumber *> *delays = @[@0.0, @0.005, @0.01, @0.02, @0.04, @0.08, @0.15, @0.30, @0.60];
+    NSArray<NSNumber *> *delays = @[@0.0, @0.005, @0.01, @0.02, @0.04, @0.08, @0.15, @0.30, @0.60, @1.0];
     for (NSNumber *delay in delays) {
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)),
                        dispatch_get_main_queue(), ^{
