@@ -18,6 +18,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Prepare Settings icon
+        run: |
+          python3 - <<'PY'
+          import base64, pathlib
+          src = pathlib.Path('prefs/eBayIcon.b64').read_text().strip()
+          out = pathlib.Path('layout/Library/PreferenceLoader/Preferences/eBayFixer.png')
+          out.parent.mkdir(parents=True, exist_ok=True)
+          out.write_bytes(base64.b64decode(src))
+          PY
+
       - name: Set up Theos
         uses: Randomblock1/theos-action@v1
         with:
@@ -56,9 +66,13 @@ jobs:
           dpkg-deb -f "${debs[0]}" Package | grep -qx 'com.551.ebayfixer'
           dpkg-deb -f "${debs[0]}" Architecture | grep -qx 'iphoneos-arm'
           dpkg-deb -x "${debs[0]}" "$RUNNER_TEMP/ebayfixer-check"
-          test -s "$RUNNER_TEMP/ebayfixer-check/Library/MobileSubstrate/DynamicLibraries/eBayFixer.dylib"
-          test -s "$RUNNER_TEMP/ebayfixer-check/Library/MobileSubstrate/DynamicLibraries/eBayFixer.plist"
-          xcrun lipo "$RUNNER_TEMP/ebayfixer-check/Library/MobileSubstrate/DynamicLibraries/eBayFixer.dylib" -verify_arch arm64 arm64e
+          root="$RUNNER_TEMP/ebayfixer-check"
+          test -s "$root/Library/MobileSubstrate/DynamicLibraries/eBayFixer.dylib"
+          test -s "$root/Library/MobileSubstrate/DynamicLibraries/eBayFixer.plist"
+          test -s "$root/Library/PreferenceBundles/eBayFixerPrefs.bundle/eBayFixerPrefs"
+          test -s "$root/Library/PreferenceLoader/Preferences/eBayFixer.plist"
+          test -s "$root/Library/PreferenceLoader/Preferences/eBayFixer.png"
+          xcrun lipo "$root/Library/MobileSubstrate/DynamicLibraries/eBayFixer.dylib" -verify_arch arm64 arm64e
 
       - uses: actions/upload-artifact@v4
         with:
@@ -66,7 +80,7 @@ jobs:
           path: packages/*.deb
           if-no-files-found: error
 
-      - name: Publish test release
+      - name: Publish final release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -74,13 +88,17 @@ jobs:
           version="$(sed -n 's/^Version: //p' control)"
           tag="v${version}"
           deb="$(find packages -maxdepth 1 -name '*.deb' -print -quit)"
+          notes='eBay 6.96.0 compatibility for rootful iOS 14. Restores Home, updates the old listing-detail request path/parameters, bypasses the expired-version checks, and adds an Enabled switch in Settings.'
 
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" "$deb" --clobber
+            gh release edit "$tag" --title "eBayFixer ${version}" --notes "$notes"
           else
-            gh release create "$tag" "$deb" \
-              --target "$GITHUB_SHA" \
-              --title "eBayFixer ${version}" \
-              --notes "Test build for rootful iOS 14: restores the native Home flow and removes the shopping-to-VLP endpoint substitution. Keeps the update bypass and diagnostic capture. Home loading requires device testing; item loading is not fixed by this release."
+            gh release create "$tag" "$deb" --target "$GITHUB_SHA" --title "eBayFixer ${version}" --notes "$notes"
           fi
 
+          gh release list --limit 100 --json tagName --jq '.[].tagName' | while read -r old; do
+            if [ -n "$old" ] && [ "$old" != "$tag" ]; then
+              gh release delete "$old" --yes --cleanup-tag
+            fi
+          done
