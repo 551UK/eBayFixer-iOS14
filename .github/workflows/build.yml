@@ -100,9 +100,9 @@ jobs:
           plutil -lint "$bundle/Info.plist"
           plutil -lint "$bundle/Root.plist"
           plutil -lint "$entry"
-          grep -q 'EBRootListController' "$bundle/Info.plist"
-          grep -q '<string>icon.png</string>' "$entry"
-          grep -q '<string>com.551.ebayfixer</string>' "$bundle/Root.plist"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :NSPrincipalClass' "$bundle/Info.plist")" = "EBRootListController"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :entry:icon' "$entry")" = "icon.png"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :items:1:defaults' "$bundle/Root.plist")" = "com.551.ebayfixer"
 
       - uses: actions/upload-artifact@v4
         with:
