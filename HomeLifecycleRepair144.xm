@@ -3,8 +3,8 @@
 #import <objc/runtime.h>
 #import <mach-o/dyld.h>
 
-extern void *EB144ProjectExistentialAsm(void *fn, void *existential, void *metadata);
-extern void EB144CallX20Asm(void *fn, void *object);
+extern "C" void *EB144ProjectExistentialAsm(void *fn, void *existential, void *metadata);
+extern "C" void EB144CallX20Asm(void *fn, void *object);
 
 static BOOL EB144DidRepair = NO;
 
