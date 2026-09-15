@@ -1,4 +1,5 @@
 #import <Foundation/Foundation.h>
+#import "Prefs.h"
 
 static BOOL EB111IsEBayURL(NSURL *url) {
     NSString *host = url.host.lowercaseString ?: @"";
@@ -36,12 +37,8 @@ static NSURL *EB111RewriteURL(NSURL *url) {
         if ([item.name isEqualToString:@"variationId"]) hasVariationIDAlias = YES;
     }
 
-    if (itemID.length && !hasItemIDAlias) {
-        [items addObject:[NSURLQueryItem queryItemWithName:@"itemId" value:itemID]];
-    }
-    if (variationID.length && !hasVariationIDAlias) {
-        [items addObject:[NSURLQueryItem queryItemWithName:@"variationId" value:variationID]];
-    }
+    if (itemID.length && !hasItemIDAlias) [items addObject:[NSURLQueryItem queryItemWithName:@"itemId" value:itemID]];
+    if (variationID.length && !hasVariationIDAlias) [items addObject:[NSURLQueryItem queryItemWithName:@"variationId" value:variationID]];
     components.queryItems = items;
     return components.URL ?: url;
 }
@@ -56,24 +53,16 @@ static NSURLRequest *EB111RewriteRequest(NSURLRequest *request) {
 }
 
 %hook NSMutableURLRequest
-- (void)setURL:(NSURL *)URL {
-    %orig(EB111RewriteURL(URL));
-}
+- (void)setURL:(NSURL *)URL { %orig(EB111RewriteURL(URL)); }
 %end
 
 %hook NSURLSession
-- (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request completionHandler:(void (^)(NSData *, NSURLResponse *, NSError *))handler {
-    return %orig(EB111RewriteRequest(request), handler);
-}
-- (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request {
-    return %orig(EB111RewriteRequest(request));
-}
-- (NSURLSessionUploadTask *)uploadTaskWithRequest:(NSURLRequest *)request fromData:(NSData *)bodyData completionHandler:(void (^)(NSData *, NSURLResponse *, NSError *))handler {
-    return %orig(EB111RewriteRequest(request), bodyData, handler);
-}
+- (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request completionHandler:(void (^)(NSData *, NSURLResponse *, NSError *))handler { return %orig(EB111RewriteRequest(request), handler); }
+- (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request { return %orig(EB111RewriteRequest(request)); }
+- (NSURLSessionUploadTask *)uploadTaskWithRequest:(NSURLRequest *)request fromData:(NSData *)bodyData completionHandler:(void (^)(NSData *, NSURLResponse *, NSError *))handler { return %orig(EB111RewriteRequest(request), bodyData, handler); }
 %end
 
 %ctor {
-    if (![[[NSBundle mainBundle] bundleIdentifier] isEqualToString:@"com.ebay.iphone"]) return;
+    if (![[[NSBundle mainBundle] bundleIdentifier] isEqualToString:@"com.ebay.iphone"] || !EBPrefsEnabled()) return;
     %init;
 }
