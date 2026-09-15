@@ -5,10 +5,9 @@
     <key>entry</key>
     <dict>
         <key>bundle</key><string>eBayFixerPrefs</string>
-        <key>bundlePath</key><string>/Library/PreferenceBundles/eBayFixerPrefs.bundle</string>
         <key>cell</key><string>PSLinkCell</string>
-        <key>detail</key><string>EBRootController</string>
-        <key>icon</key><string>eBayFixer.png</string>
+        <key>detail</key><string>EBRootListController</string>
+        <key>icon</key><string>icon.png</string>
         <key>isController</key><true/>
         <key>label</key><string>eBayFixer iOS 14</string>
     </dict>
