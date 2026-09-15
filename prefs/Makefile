@@ -1,8 +1,11 @@
+ARCHS = arm64 arm64e
+TARGET = iphone:clang:14.5:14.0
+
 include $(THEOS)/makefiles/common.mk
 
 BUNDLE_NAME = eBayFixerPrefs
-eBayFixerPrefs_FILES = EBRootController.m
-eBayFixerPrefs_FRAMEWORKS = UIKit
+eBayFixerPrefs_FILES = EBRootListController.m
+eBayFixerPrefs_FRAMEWORKS = Foundation UIKit CoreFoundation
 eBayFixerPrefs_PRIVATE_FRAMEWORKS = Preferences
 eBayFixerPrefs_INSTALL_PATH = /Library/PreferenceBundles
 eBayFixerPrefs_CFLAGS = -fobjc-arc
