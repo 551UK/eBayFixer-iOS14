@@ -2,18 +2,20 @@
 #import <UIKit/UIKit.h>
 #import <objc/runtime.h>
 #import <mach-o/dyld.h>
+#import <mach/mach.h>
+#import <mach/mach_vm.h>
 
 extern void EB137CallSwiftSelf0(void *swiftSelf, void *function);
 
-static BOOL EB137DidRebind = NO;
+static BOOL EB138DidRebind = NO;
 
-static NSString *EB137LogPath(void) {
+static NSString *EB138LogPath(void) {
     NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
     NSString *dir = paths.firstObject ?: NSTemporaryDirectory();
     return [dir stringByAppendingPathComponent:@"eBayFixer.log"];
 }
 
-static void EB137Log(NSString *format, ...) {
+static void EB138Log(NSString *format, ...) {
     if (!format) return;
     va_list args;
     va_start(args, format);
@@ -21,7 +23,7 @@ static void EB137Log(NSString *format, ...) {
     va_end(args);
     if (!message.length) return;
 
-    NSString *path = EB137LogPath();
+    NSString *path = EB138LogPath();
     if (![[NSFileManager defaultManager] fileExistsAtPath:path]) {
         [[NSFileManager defaultManager] createFileAtPath:path contents:nil attributes:nil];
     }
@@ -35,39 +37,39 @@ static void EB137Log(NSString *format, ...) {
     } @catch (__unused NSException *exception) {}
 }
 
-static UIViewController *EB137FindVLPInController(UIViewController *vc) {
+static UIViewController *EB138FindVLPInController(UIViewController *vc) {
     if (!vc) return nil;
     NSString *name = NSStringFromClass([vc class]) ?: @"";
     if ([name containsString:@"HomeVerticalLandingPageViewController"]) return vc;
 
     if (vc.presentedViewController) {
-        UIViewController *found = EB137FindVLPInController(vc.presentedViewController);
+        UIViewController *found = EB138FindVLPInController(vc.presentedViewController);
         if (found) return found;
     }
     if ([vc isKindOfClass:[UINavigationController class]]) {
-        UIViewController *found = EB137FindVLPInController([(UINavigationController *)vc visibleViewController]);
+        UIViewController *found = EB138FindVLPInController([(UINavigationController *)vc visibleViewController]);
         if (found) return found;
     }
     if ([vc isKindOfClass:[UITabBarController class]]) {
-        UIViewController *found = EB137FindVLPInController([(UITabBarController *)vc selectedViewController]);
+        UIViewController *found = EB138FindVLPInController([(UITabBarController *)vc selectedViewController]);
         if (found) return found;
     }
     for (UIViewController *child in vc.childViewControllers) {
-        UIViewController *found = EB137FindVLPInController(child);
+        UIViewController *found = EB138FindVLPInController(child);
         if (found) return found;
     }
     return nil;
 }
 
-static UIViewController *EB137FindVLP(void) {
+static UIViewController *EB138FindVLP(void) {
     for (UIWindow *window in [UIApplication sharedApplication].windows) {
-        UIViewController *found = EB137FindVLPInController(window.rootViewController);
+        UIViewController *found = EB138FindVLPInController(window.rootViewController);
         if (found) return found;
     }
     return nil;
 }
 
-static void *EB137HomeImageBase(void) {
+static void *EB138HomeImageBase(void) {
     uint32_t count = _dyld_image_count();
     for (uint32_t i = 0; i < count; i++) {
         const char *name = _dyld_get_image_name(i);
@@ -78,173 +80,181 @@ static void *EB137HomeImageBase(void) {
     return NULL;
 }
 
-static uint32_t EB137FieldOffset(Class cls, NSUInteger vectorWordOffset, NSUInteger fieldIndex) {
-    if (!cls) return 0;
-    uint8_t *metadata = (uint8_t *)(__bridge void *)cls;
-    uint32_t *vector = (uint32_t *)(metadata + vectorWordOffset * sizeof(void *));
-    return vector[fieldIndex];
+static BOOL EB138ReadWord(uintptr_t address, uintptr_t *value) {
+    if (!address || !value) return NO;
+    mach_vm_size_t outSize = 0;
+    uintptr_t tmp = 0;
+    kern_return_t kr = mach_vm_read_overwrite(mach_task_self(),
+                                              (mach_vm_address_t)address,
+                                              (mach_vm_size_t)sizeof(tmp),
+                                              (mach_vm_address_t)&tmp,
+                                              &outSize);
+    if (kr != KERN_SUCCESS || outSize != sizeof(tmp)) return NO;
+    *value = tmp;
+    return YES;
 }
 
-static BOOL EB137PointerIsInstanceOf(void *object, Class expected) {
-    if (!object || !expected) return NO;
-    uintptr_t firstWord = 0;
-    @try {
-        firstWord = *(uintptr_t *)object;
-    } @catch (__unused NSException *exception) {
-        return NO;
-    }
-    const uintptr_t mask = 0x0000FFFFFFFFFFFFULL;
-    return (firstWord & mask) == (((uintptr_t)(__bridge void *)expected) & mask);
+static BOOL EB138MetadataMatches(uintptr_t objectHeader, uintptr_t metadata) {
+    if (objectHeader == metadata) return YES;
+    const uintptr_t mask = 0x0000FFFFFFFFFFF8ULL;
+    return (objectHeader & mask) == (metadata & mask);
 }
+
+typedef void *(*EB138MetadataAccessor)(uintptr_t request);
+typedef void *(*EB138OpenExistential)(void *storage, void *metadata);
 
 typedef struct {
     UIViewController *controller;
     void *viewModel;
     void *modelManager;
-    uint32_t vmNeedsRefreshOffset;
-    uint32_t vmIsRefreshingOffset;
-    uint32_t vmUseCaseOffset;
-    uint32_t managerIsRetrievingOffset;
+    void *viewModelMetadata;
+    size_t controllerOffset;
     uint8_t needsRefresh;
     uint8_t isRefreshing;
     uint8_t useCase;
     uint8_t isRetrieving;
-} EB137State;
+} EB138State;
 
-static BOOL EB137ReadState(EB137State *state, NSString *phase) {
+static void *EB138ViewModelMetadata(void *base) {
+    if (!base) return NULL;
+    // 6.96 HomePageModule metadata accessor for
+    // HomePageModule.VerticalLandingPageViewModel.
+    EB138MetadataAccessor accessor = (EB138MetadataAccessor)((uint8_t *)base + 0xF4820);
+    return accessor(0);
+}
+
+static void *EB138FindViewModel(UIViewController *vc, void *metadata, void *imageBase, size_t *foundOffset) {
+    if (!vc || !metadata) return NULL;
+
+    uint8_t *objectBytes = (uint8_t *)(__bridge void *)vc;
+    size_t instanceSize = class_getInstanceSize([vc class]);
+    uintptr_t wanted = (uintptr_t)metadata;
+    uintptr_t imageStart = (uintptr_t)imageBase;
+    uintptr_t imageEnd = imageStart ? imageStart + 0x210000 : 0;
+    NSMutableArray<NSString *> *nearbySwift = [NSMutableArray array];
+
+    for (size_t offset = 0; offset + sizeof(uintptr_t) <= instanceSize; offset += sizeof(uintptr_t)) {
+        uintptr_t candidate = 0;
+        memcpy(&candidate, objectBytes + offset, sizeof(candidate));
+        if (candidate < 0x100000000ULL || candidate > 0x0000FFFFFFFFFFFFULL || (candidate & 0x7)) continue;
+
+        uintptr_t header = 0;
+        if (!EB138ReadWord(candidate, &header)) continue;
+        if (EB138MetadataMatches(header, wanted)) {
+            if (foundOffset) *foundOffset = offset;
+            EB138Log(@"HOME_STATE138 vm_found controllerOffset=0x%zx vm=%p header=%p metadata=%p instanceSize=0x%zx",
+                     offset, (void *)candidate, (void *)header, metadata, instanceSize);
+            return (void *)candidate;
+        }
+
+        if (imageStart && header >= imageStart && header < imageEnd && nearbySwift.count < 16) {
+            [nearbySwift addObject:[NSString stringWithFormat:@"off=0x%zx obj=%p meta=%p",
+                                    offset, (void *)candidate, (void *)header]];
+        }
+    }
+
+    EB138Log(@"HOME_STATE138 vm_not_found wanted=%p instanceSize=0x%zx nearby=[%@]",
+             metadata, instanceSize, [nearbySwift componentsJoinedByString:@" | "]);
+    return NULL;
+}
+
+static BOOL EB138ReadState(EB138State *state, NSString *phase) {
     if (!state) return NO;
     memset(state, 0, sizeof(*state));
 
-    UIViewController *vc = EB137FindVLP();
+    UIViewController *vc = EB138FindVLP();
     if (!vc) {
-        EB137Log(@"HOME_STATE137 phase=%@ controller=not_found", phase);
+        EB138Log(@"HOME_STATE138 phase=%@ controller=not_found", phase);
         return NO;
     }
     state->controller = vc;
 
-    Class baseClass = NSClassFromString(@"HomePageModule.VerticalLandingBaseViewController");
-    if (!baseClass) baseClass = NSClassFromString(@"_TtC14HomePageModule33VerticalLandingBaseViewController");
-    Class viewModelClass = NSClassFromString(@"HomePageModule.VerticalLandingPageViewModel");
-    if (!viewModelClass) viewModelClass = NSClassFromString(@"_TtC14HomePageModule28VerticalLandingPageViewModel");
-    Class managerClass = NSClassFromString(@"HomePageModule.VerticalLandingPageModelManager");
-    if (!managerClass) managerClass = NSClassFromString(@"_TtC14HomePageModule31VerticalLandingPageModelManager");
-
-    if (!baseClass || !viewModelClass || !managerClass) {
-        EB137Log(@"HOME_STATE137 phase=%@ missing_classes base=%@ vm=%@ manager=%@",
-                 phase, baseClass ? NSStringFromClass(baseClass) : @"nil",
-                 viewModelClass ? NSStringFromClass(viewModelClass) : @"nil",
-                 managerClass ? NSStringFromClass(managerClass) : @"nil");
+    void *base = EB138HomeImageBase();
+    if (!base) {
+        EB138Log(@"HOME_STATE138 phase=%@ image_base_not_found", phase);
         return NO;
     }
 
-    // Swift class descriptor values from the supplied eBay 6.96 HomePageModule:
-    // VerticalLandingBaseViewController FieldOffsetVectorOffset = 14 words.
-    // VerticalLandingPageViewModel / ModelManager = 10 words.
-    uint32_t baseViewModelOffset = EB137FieldOffset(baseClass, 14, 0);
-    uint8_t *baseField = (uint8_t *)(__bridge void *)vc + baseViewModelOffset;
-    void *viewModel = *(void **)baseField;
+    void *vmMetadata = EB138ViewModelMetadata(base);
+    state->viewModelMetadata = vmMetadata;
+    if (!vmMetadata) {
+        EB138Log(@"HOME_STATE138 phase=%@ vm_metadata_nil", phase);
+        return NO;
+    }
 
-    uint32_t vmModelManagerOffset = EB137FieldOffset(viewModelClass, 10, 0);
-    uint32_t vmNeedsRefreshOffset = EB137FieldOffset(viewModelClass, 10, 1);
-    uint32_t vmIsRefreshingOffset = EB137FieldOffset(viewModelClass, 10, 2);
-    uint32_t vmUseCaseOffset = EB137FieldOffset(viewModelClass, 10, 3);
-
-    BOOL vmOK = EB137PointerIsInstanceOf(viewModel, viewModelClass);
-    if (!vmOK) {
-        uintptr_t raw[5] = {0};
-        memcpy(raw, baseField, sizeof(raw));
-        EB137Log(@"HOME_STATE137 phase=%@ vm_invalid baseOffset=0x%x raw=%p,%p,%p,%p,%p",
-                 phase, baseViewModelOffset,
-                 (void *)raw[0], (void *)raw[1], (void *)raw[2], (void *)raw[3], (void *)raw[4]);
+    size_t controllerOffset = 0;
+    void *viewModel = EB138FindViewModel(vc, vmMetadata, base, &controllerOffset);
+    if (!viewModel) {
+        EB138Log(@"HOME_STATE138 phase=%@ controller=%@ vm_unresolved metadata=%p",
+                 phase, NSStringFromClass([vc class]), vmMetadata);
         return NO;
     }
 
     state->viewModel = viewModel;
-    state->vmNeedsRefreshOffset = vmNeedsRefreshOffset;
-    state->vmIsRefreshingOffset = vmIsRefreshingOffset;
-    state->vmUseCaseOffset = vmUseCaseOffset;
-    state->needsRefresh = *((uint8_t *)viewModel + vmNeedsRefreshOffset);
-    state->isRefreshing = *((uint8_t *)viewModel + vmIsRefreshingOffset);
-    state->useCase = *((uint8_t *)viewModel + vmUseCaseOffset);
+    state->controllerOffset = controllerOffset;
 
-    uint8_t *managerExistential = (uint8_t *)viewModel + vmModelManagerOffset;
-    void *modelManager = *(void **)managerExistential;
-    BOOL managerOK = EB137PointerIsInstanceOf(modelManager, managerClass);
+    // These are direct fixed offsets proven by the 6.96 disassembly:
+    // f462c zeroes 0x38/0x39, f46c4 checks 0x39 and passes 0x3a to manager.
+    state->needsRefresh = *((uint8_t *)viewModel + 0x38);
+    state->isRefreshing = *((uint8_t *)viewModel + 0x39);
+    state->useCase = *((uint8_t *)viewModel + 0x3A);
 
-    uint32_t managerSubjectOffset = EB137FieldOffset(managerClass, 10, 0);
-    uint32_t managerFeedSubjectOffset = EB137FieldOffset(managerClass, 10, 1);
-    uint32_t managerIsRetrievingOffset = EB137FieldOffset(managerClass, 10, 2);
-    uint32_t managerRequestFactoryOffset = EB137FieldOffset(managerClass, 10, 4);
-    uint32_t managerNetworkerOffset = EB137FieldOffset(managerClass, 10, 5);
-    uint32_t managerTransformOffset = EB137FieldOffset(managerClass, 10, 6);
+    // The ViewModel stores ModelManager as a Swift existential at +0x10.
+    // HomePageModule+0xBE08 is the exact helper used by f462c/f46c4 to open it.
+    void *existentialMetadata = *(void **)((uint8_t *)viewModel + 0x28);
+    EB138OpenExistential openExistential = (EB138OpenExistential)((uint8_t *)base + 0xBE08);
+    void *opened = existentialMetadata ? openExistential((uint8_t *)viewModel + 0x10, existentialMetadata) : NULL;
+    void *manager = opened ? *(void **)opened : NULL;
+    state->modelManager = manager;
 
-    state->modelManager = managerOK ? modelManager : NULL;
-    state->managerIsRetrievingOffset = managerIsRetrievingOffset;
-    state->isRetrieving = managerOK ? *((uint8_t *)modelManager + managerIsRetrievingOffset) : 0xFF;
+    uintptr_t managerHeader = 0;
+    BOOL managerReadable = manager && EB138ReadWord((uintptr_t)manager, &managerHeader);
+    state->isRetrieving = managerReadable ? *((uint8_t *)manager + 0x20) : 0xFF;
 
-    void *subject = managerOK ? *(void **)((uint8_t *)modelManager + managerSubjectOffset) : NULL;
-    void *feedSubject = managerOK ? *(void **)((uint8_t *)modelManager + managerFeedSubjectOffset) : NULL;
-    void *requestFactory = managerOK ? *(void **)((uint8_t *)modelManager + managerRequestFactoryOffset) : NULL;
-    void *networker = managerOK ? *(void **)((uint8_t *)modelManager + managerNetworkerOffset) : NULL;
-    void *transform = managerOK ? *(void **)((uint8_t *)modelManager + managerTransformOffset) : NULL;
+    void *subject = managerReadable ? *(void **)((uint8_t *)manager + 0x10) : NULL;
+    void *feedSubject = managerReadable ? *(void **)((uint8_t *)manager + 0x18) : NULL;
+    void *requestMeta = managerReadable ? *(void **)((uint8_t *)manager + 0x48) : NULL;
+    void *networkMeta = managerReadable ? *(void **)((uint8_t *)manager + 0x70) : NULL;
+    void *transformMeta = managerReadable ? *(void **)((uint8_t *)manager + 0x98) : NULL;
 
-    EB137Log(@"HOME_STATE137 phase=%@ controller=%@ baseOff=0x%x vm=%p vmOffs=[mgr=0x%x needs=0x%x refreshing=0x%x useCase=0x%x] needs=%u refreshing=%u useCase=%u manager=%p managerOK=%d retrieving=%u mgrOffs=[subject=0x%x feed=0x%x retrieving=0x%x req=0x%x net=0x%x transform=0x%x] subject=%p feed=%p req=%p net=%p transform=%p",
-             phase, NSStringFromClass([vc class]), baseViewModelOffset, viewModel,
-             vmModelManagerOffset, vmNeedsRefreshOffset, vmIsRefreshingOffset, vmUseCaseOffset,
+    EB138Log(@"HOME_STATE138 phase=%@ controller=%@ vcOff=0x%zx vm=%p vmMeta=%p flags=[needs=%u refreshing=%u useCase=%u] existentialMeta=%p manager=%p managerHeader=%p readable=%d retrieving=%u subject=%p feed=%p reqMeta=%p netMeta=%p transformMeta=%p",
+             phase, NSStringFromClass([vc class]), controllerOffset,
+             viewModel, vmMetadata,
              state->needsRefresh, state->isRefreshing, state->useCase,
-             modelManager, managerOK, state->isRetrieving,
-             managerSubjectOffset, managerFeedSubjectOffset, managerIsRetrievingOffset,
-             managerRequestFactoryOffset, managerNetworkerOffset, managerTransformOffset,
-             subject, feedSubject, requestFactory, networker, transform);
-
-    // Also dump the Published wrapper storage words. This lets us see whether the
-    // model result reaches ViewModel even if ComponentUI never receives sections.
-    NSArray<NSNumber *> *publishedIndexes = @[@6, @7, @9]; // _isLoading, _sections, _pageError
-    NSArray<NSString *> *publishedNames = @[@"isLoading", @"sections", @"pageError"];
-    for (NSUInteger i = 0; i < publishedIndexes.count; i++) {
-        uint32_t off = EB137FieldOffset(viewModelClass, 10, publishedIndexes[i].unsignedIntegerValue);
-        uintptr_t words[4] = {0};
-        memcpy(words, (uint8_t *)viewModel + off, sizeof(words));
-        EB137Log(@"HOME_STATE137 phase=%@ published=%@ off=0x%x words=%p,%p,%p,%p",
-                 phase, publishedNames[i], off,
-                 (void *)words[0], (void *)words[1], (void *)words[2], (void *)words[3]);
-    }
+             existentialMetadata, manager, (void *)managerHeader, managerReadable,
+             state->isRetrieving, subject, feedSubject, requestMeta, networkMeta, transformMeta);
 
     return YES;
 }
 
-static void EB137RebindAndRefetch(void) {
-    if (EB137DidRebind) return;
+static void EB138RebindAndRefetch(void) {
+    if (EB138DidRebind) return;
 
-    EB137State state;
-    if (!EB137ReadState(&state, @"pre_rebind")) return;
-    if (!state.viewModel) return;
+    EB138State state;
+    if (!EB138ReadState(&state, @"pre_rebind") || !state.viewModel) return;
 
-    void *base = EB137HomeImageBase();
-    if (!base) {
-        EB137Log(@"HOME_REBIND137 image_base_not_found");
-        return;
-    }
+    void *base = EB138HomeImageBase();
+    if (!base) return;
 
-    // Reverse engineered from the supplied 6.96 HomePageModule:
-    // 0xF462C = ViewModel publisher/subscription setup.
-    // 0xF46C4 = ViewModel fetch routine (checks isRefreshing, then invokes ModelManager).
+    // 6.96 ViewModel internals:
+    // 0xF462C subscribes the ViewModel to ModelManager's publisher.
+    // 0xF46C4 starts fetch if the ViewModel is not already refreshing.
     void *setupFunction = (uint8_t *)base + 0xF462C;
     void *fetchFunction = (uint8_t *)base + 0xF46C4;
 
-    EB137DidRebind = YES;
-    EB137Log(@"HOME_REBIND137 begin base=%p vm=%p setup=%p fetch=%p before_refreshing=%u before_retrieving=%u useCase=%u",
+    EB138DidRebind = YES;
+    EB138Log(@"HOME_REBIND138 begin base=%p vm=%p setup=%p fetch=%p before=[needs=%u refreshing=%u retrieving=%u useCase=%u]",
              base, state.viewModel, setupFunction, fetchFunction,
-             state.isRefreshing, state.isRetrieving, state.useCase);
+             state.needsRefresh, state.isRefreshing, state.isRetrieving, state.useCase);
 
     EB137CallSwiftSelf0(state.viewModel, setupFunction);
-    EB137Log(@"HOME_REBIND137 setup_called=1");
+    EB138Log(@"HOME_REBIND138 setup_called=1");
 
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.15 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.20 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         EB137CallSwiftSelf0(state.viewModel, fetchFunction);
-        EB137Log(@"HOME_REBIND137 fetch_called=1");
-        EB137State after;
-        EB137ReadState(&after, @"post_fetch");
+        EB138Log(@"HOME_REBIND138 fetch_called=1");
+        EB138State after;
+        EB138ReadState(&after, @"post_fetch");
     });
 }
 
@@ -253,13 +263,13 @@ static void EB137RebindAndRefetch(void) {
         if (![[[NSBundle mainBundle] bundleIdentifier] isEqualToString:@"com.ebay.iphone"]) return;
 
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2.25 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            EB137RebindAndRefetch();
+            EB138RebindAndRefetch();
         });
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(4.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            EB137State state; EB137ReadState(&state, @"4s");
+            EB138State state; EB138ReadState(&state, @"4s");
         });
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(8.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            EB137State state; EB137ReadState(&state, @"8s");
+            EB138State state; EB138ReadState(&state, @"8s");
         });
     }
 }
