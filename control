@@ -6,5 +6,5 @@ Description: Restores eBay 6.96.0 compatibility on rootful iOS 14.
 Maintainer: 551UK
 Author: 551UK
 Section: Tweaks
-Depends: mobilesubstrate
+Depends: mobilesubstrate, preferenceloader
 Conflicts: com.551.ebayfix
