@@ -1,6 +1,7 @@
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>
 #import <substrate.h>
+#import "Prefs.h"
 
 static NSMutableSet *EB112InstalledHooks(void) {
     static NSMutableSet *set;
@@ -42,7 +43,7 @@ static void EB112InstallItemV2Hooks(void) {
 
 %ctor {
     @autoreleasepool {
-        if (![[[NSBundle mainBundle] bundleIdentifier] isEqualToString:@"com.ebay.iphone"]) return;
+        if (![[[NSBundle mainBundle] bundleIdentifier] isEqualToString:@"com.ebay.iphone"] || !EBPrefsEnabled()) return;
         EB112InstallItemV2Hooks();
         for (NSNumber *delay in @[@0.1, @0.25, @0.75, @1.5, @3.0, @5.0, @8.0]) {
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)),
