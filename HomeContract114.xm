@@ -55,13 +55,25 @@ static NSURLRequest *EB114NormalizeHomeRequest(NSURLRequest *request) {
 }
 
 %hook NSMutableURLRequest
-- (void)setURL:(NSURL *)URL { %orig(EB114NormalizeHomeURL(URL)); }
+- (void)setURL:(NSURL *)URL {
+    NSURL *normalized = EB114NormalizeHomeURL(URL);
+    %orig(normalized);
+}
 %end
 
 %hook NSURLSession
-- (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request completionHandler:(void (^)(NSData *, NSURLResponse *, NSError *))handler { return %orig(EB114NormalizeHomeRequest(request), handler); }
-- (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request { return %orig(EB114NormalizeHomeRequest(request)); }
-- (NSURLSessionUploadTask *)uploadTaskWithRequest:(NSURLRequest *)request fromData:(NSData *)bodyData completionHandler:(void (^)(NSData *, NSURLResponse *, NSError *))handler { return %orig(EB114NormalizeHomeRequest(request), bodyData, handler); }
+- (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request completionHandler:(void (^)(NSData *, NSURLResponse *, NSError *))handler {
+    NSURLRequest *normalized = EB114NormalizeHomeRequest(request);
+    return %orig(normalized, handler);
+}
+- (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request {
+    NSURLRequest *normalized = EB114NormalizeHomeRequest(request);
+    return %orig(normalized);
+}
+- (NSURLSessionUploadTask *)uploadTaskWithRequest:(NSURLRequest *)request fromData:(NSData *)bodyData completionHandler:(void (^)(NSData *, NSURLResponse *, NSError *))handler {
+    NSURLRequest *normalized = EB114NormalizeHomeRequest(request);
+    return %orig(normalized, bodyData, handler);
+}
 %end
 
 %ctor {
