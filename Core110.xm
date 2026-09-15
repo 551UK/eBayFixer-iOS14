@@ -145,15 +145,27 @@ static BOOL EB110IsUpdateAlert(UIViewController *controller) {
 
 %hook NSMutableURLRequest
 - (void)setValue:(NSString *)value forHTTPHeaderField:(NSString *)field {
-    if (EB110IsEBayHost(self.URL.host)) { %orig(EB110HeaderValue(field, value, self.URL), field); return; }
+    if (EB110IsEBayHost(self.URL.host)) {
+        NSString *rewritten = EB110HeaderValue(field, value, self.URL);
+        %orig(rewritten, field);
+        return;
+    }
     %orig;
 }
 - (void)addValue:(NSString *)value forHTTPHeaderField:(NSString *)field {
-    if (EB110IsEBayHost(self.URL.host)) { %orig(EB110HeaderValue(field, value, self.URL), field); return; }
+    if (EB110IsEBayHost(self.URL.host)) {
+        NSString *rewritten = EB110HeaderValue(field, value, self.URL);
+        %orig(rewritten, field);
+        return;
+    }
     %orig;
 }
 - (void)setAllHTTPHeaderFields:(NSDictionary *)headers {
-    if (EB110IsEBayHost(self.URL.host)) { %orig(EB110Headers(headers, self.URL)); return; }
+    if (EB110IsEBayHost(self.URL.host)) {
+        NSDictionary *rewritten = EB110Headers(headers, self.URL);
+        %orig(rewritten);
+        return;
+    }
     %orig;
 }
 %end
@@ -171,11 +183,18 @@ static BOOL EB110IsUpdateAlert(UIViewController *controller) {
 %end
 
 %hook NSURLSession
-- (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request completionHandler:(void (^)(NSData *, NSURLResponse *, NSError *))handler { return %orig(EB110PreparedRequest(request), handler); }
-- (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request { return %orig(EB110PreparedRequest(request)); }
+- (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request completionHandler:(void (^)(NSData *, NSURLResponse *, NSError *))handler {
+    NSURLRequest *prepared = EB110PreparedRequest(request);
+    return %orig(prepared, handler);
+}
+- (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request {
+    NSURLRequest *prepared = EB110PreparedRequest(request);
+    return %orig(prepared);
+}
 - (NSURLSessionUploadTask *)uploadTaskWithRequest:(NSURLRequest *)request fromData:(NSData *)data completionHandler:(void (^)(NSData *, NSURLResponse *, NSError *))handler {
     NSURLRequest *prepared = EB110PreparedRequest(request);
-    return %orig(prepared, EB110Body(data, prepared.URL), handler);
+    NSData *rewrittenBody = EB110Body(data, prepared.URL);
+    return %orig(prepared, rewrittenBody, handler);
 }
 %end
 
