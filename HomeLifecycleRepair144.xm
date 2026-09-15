@@ -3,7 +3,6 @@
 #import <objc/runtime.h>
 #import <mach-o/dyld.h>
 #import <mach/mach.h>
-#import <mach/mach_vm.h>
 
 extern "C" void EB144CallX20Asm(void *fn, void *object);
 
@@ -95,12 +94,12 @@ static Class EB144FindClass(NSArray<NSString *> *names) {
 static BOOL EB144Readable(uintptr_t address) {
     if (address < 0x100000000ULL) return NO;
     uintptr_t scratch = 0;
-    mach_vm_size_t size = 0;
-    kern_return_t kr = mach_vm_read_overwrite(mach_task_self(),
-                                               (mach_vm_address_t)address,
-                                               (mach_vm_size_t)sizeof(scratch),
-                                               (mach_vm_address_t)&scratch,
-                                               &size);
+    vm_size_t size = 0;
+    kern_return_t kr = vm_read_overwrite(mach_task_self(),
+                                          (vm_address_t)address,
+                                          (vm_size_t)sizeof(scratch),
+                                          (vm_address_t)&scratch,
+                                          &size);
     return kr == KERN_SUCCESS && size == sizeof(scratch);
 }
 
