@@ -146,20 +146,22 @@ static void EB149Attempt(void) {
     uint8_t useCase = vr[0x3a];
     if (useCase > 1) { EB149Log(@"HOME_MANAGER149 unsupported_useCase=%u", useCase); return; }
 
+    uintptr_t vmPtr = vme[0];
+    uintptr_t managerPtr = me[0];
     EB149DidAttempt = YES;
     EB149Log(@"HOME_MANAGER149 guards_ok vm=0x%llx manager=0x%llx base=0x%llx useCase=%u",
-             (unsigned long long)vme[0], (unsigned long long)me[0],
+             (unsigned long long)vmPtr, (unsigned long long)managerPtr,
              (unsigned long long)base, useCase);
 
-    EB149Snapshot(vc, vme[0], me[0], @"before_setup");
+    EB149Snapshot(vc, vmPtr, managerPtr, @"before_setup");
 
     // Bind the ViewModel to the manager's publisher using the exact 6.96 routine.
-    EB144CallX20Asm((void *)(base + 0xF462C), (void *)vme[0]);
-    EB149Snapshot(vc, vme[0], me[0], @"after_setup");
+    EB144CallX20Asm((void *)(base + 0xF462C), (void *)vmPtr);
+    EB149Snapshot(vc, vmPtr, managerPtr, @"after_setup");
 
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.30 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         uint8_t mr[0x28] = {0};
-        if (!EB149Read(me[0], mr, sizeof(mr))) {
+        if (!EB149Read(managerPtr, mr, sizeof(mr))) {
             EB149Log(@"HOME_MANAGER149 prefetch_manager_read_failed");
             return;
         }
@@ -170,17 +172,17 @@ static void EB149Attempt(void) {
 
         // Bypass ViewModel's HomeHotSwapper early-return and invoke the manager's native fetch directly.
         EB149Log(@"HOME_MANAGER149 calling_manager_fetch fn=0xd82f4 useCase=%u", useCase);
-        EB149CallX20W0Asm((void *)(base + 0xD82F4), (void *)me[0], (uint32_t)(useCase & 1));
-        EB149Snapshot(vc, vme[0], me[0], @"after_manager_fetch");
+        EB149CallX20W0Asm((void *)(base + 0xD82F4), (void *)managerPtr, (uint32_t)(useCase & 1));
+        EB149Snapshot(vc, vmPtr, managerPtr, @"after_manager_fetch");
 
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.20 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            EB149Snapshot(vc, vme[0], me[0], @"plus_200ms");
+            EB149Snapshot(vc, vmPtr, managerPtr, @"plus_200ms");
         });
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            EB149Snapshot(vc, vme[0], me[0], @"plus_1.5s");
+            EB149Snapshot(vc, vmPtr, managerPtr, @"plus_1.5s");
         });
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(4.0 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            EB149Snapshot(vc, vme[0], me[0], @"plus_4s");
+            EB149Snapshot(vc, vmPtr, managerPtr, @"plus_4s");
         });
     });
 }
