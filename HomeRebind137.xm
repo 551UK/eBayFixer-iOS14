@@ -80,7 +80,7 @@ static void *EB137HomeImageBase(void) {
 
 static uint32_t EB137FieldOffset(Class cls, NSUInteger vectorWordOffset, NSUInteger fieldIndex) {
     if (!cls) return 0;
-    uint8_t *metadata = (uint8_t *)cls;
+    uint8_t *metadata = (uint8_t *)(__bridge void *)cls;
     uint32_t *vector = (uint32_t *)(metadata + vectorWordOffset * sizeof(void *));
     return vector[fieldIndex];
 }
@@ -94,7 +94,7 @@ static BOOL EB137PointerIsInstanceOf(void *object, Class expected) {
         return NO;
     }
     const uintptr_t mask = 0x0000FFFFFFFFFFFFULL;
-    return (firstWord & mask) == (((uintptr_t)expected) & mask);
+    return (firstWord & mask) == (((uintptr_t)(__bridge void *)expected) & mask);
 }
 
 typedef struct {
