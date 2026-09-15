@@ -47,22 +47,8 @@ static BOOL EB110IsDCSURL(NSURL *url) {
     return [host isEqualToString:@"mobidcsng.ebay.com"] || [path containsString:@"/mobile/dcs/"];
 }
 
-static BOOL EB110IsHomeVLPURL(NSURL *url) {
-    if (!url) return NO;
-    NSString *host = url.host.lowercaseString ?: @"";
-    NSString *path = url.path.lowercaseString ?: @"";
-    BOOL ebayHost = [host isEqualToString:@"ebay.com"] || [host hasSuffix:@".ebay.com"] || [host hasSuffix:@".ebay.co.uk"];
-    if (!ebayHost) return NO;
-    return [path isEqualToString:@"/experience/vertical_landing/v1/get_homepage"] ||
-           [path isEqualToString:@"/experience/shopping/v1/home"];
-}
-
-static BOOL EB110UseOriginalVersionForURL(NSURL *url) {
-    return EB110IsDCSURL(url) || EB110IsHomeVLPURL(url);
-}
-
 static NSString *EB110TargetVersionForURL(NSURL *url) {
-    return EB110UseOriginalVersionForURL(url) ? EB110OriginalVersion : EB110Version;
+    return EB110IsDCSURL(url) ? EB110OriginalVersion : EB110Version;
 }
 
 static NSString *EB110RewriteVersionTextForURL(NSString *value, NSURL *url) {
@@ -143,8 +129,6 @@ static void EB110Prepare(NSMutableURLRequest *request) {
 
     if (EB110IsDCSURL(request.URL)) {
         EB110Log(@"DCS_COMPAT prepared version=%@ url=%@", EB110OriginalVersion, request.URL.absoluteString ?: @"-");
-    } else if (EB110IsHomeVLPURL(request.URL)) {
-        EB110Log(@"HOME_VERSION141 prepared version=%@ url=%@", EB110OriginalVersion, request.URL.absoluteString ?: @"-");
     }
 }
 
