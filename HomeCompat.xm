@@ -1,6 +1,7 @@
 #import <Foundation/Foundation.h>
 #import <objc/runtime.h>
 #import <substrate.h>
+#import "Prefs.h"
 
 static NSMutableSet *EBHomeInstalledHooks(void) {
     static NSMutableSet *set;
@@ -74,7 +75,7 @@ static void EBInstallHomeCompat(void) {
 
 %ctor {
     @autoreleasepool {
-        if (![[[NSBundle mainBundle] bundleIdentifier] isEqualToString:@"com.ebay.iphone"]) return;
+        if (![[[NSBundle mainBundle] bundleIdentifier] isEqualToString:@"com.ebay.iphone"] || !EBPrefsEnabled()) return;
         EBInstallHomeCompat();
         for (NSNumber *delay in @[@0.1, @0.5, @1.0, @2.0, @4.0]) {
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)),
