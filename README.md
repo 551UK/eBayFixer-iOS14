@@ -19,4 +19,4 @@ Search results themselves still use the old app UI, but opening item data relies
 It also enables the old app's native newer item-service feature path where required.
 
 ### Version checks
-The tweak bypasses the expired/update-required checks and presents a newer app version to the services that require it. DCS is kept on the real **6.96.0** version because newer spoofed DCS versions are rejected by the server.
+The tweak bypasses the expired/update-required checks and presents a newer app version to the services that require it. DCS is kept on the real **6.96.0** version because newer spoofed DCS versions are rejected by the server..
