@@ -1,9 +1,10 @@
 # eBayFixer iOS 14
 
-Compatibility tweak for eBay 6.96.0 on rootful iOS 14.
+Compatibility tweak for **eBay 6.96.0** on rootful iOS 14.
 
-Version 1.0.14 tests the original native Home flow instead of redirecting its requests to the newer VLP service. The version/update bypass and diagnostic capture remain enabled.
+## Fixes
+- **Home:** moves the retired Home request to eBay's VLP service, forces the 6.96 F90 Home route, and bypasses the stale HomeHotSwapper gate so the native ModelManager actually fetches and publishes the Home feed.
+- **Search / items:** moves old listing-detail requests to the newer v2 endpoints and adds the newer item/variation parameter names expected by the service.
+- Bypasses the old app update/kill-switch checks while keeping DCS on the real 6.96.0 version.
 
-Build and package validation do not confirm live Home loading. Item loading remains under investigation. Both IPAs still need to be compared; this release is based on the source and supplied logs.
-
-Install the deb from Releases, then fully close and reopen eBay. If Home still fails, send the new eBayFixer log and HOME response.
+Settings includes an **Enabled** switch and a link to this GitHub repo. No respring button is needed; fully close and reopen eBay after changing the switch.
