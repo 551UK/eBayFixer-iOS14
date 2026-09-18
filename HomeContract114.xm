@@ -5,7 +5,12 @@ static NSString *const EB114HomePathOld = @"/experience/shopping/v1/home";
 static NSString *const EB114HomePathNew = @"/experience/vertical_landing/v1/get_homepage";
 
 static NSString *EB114SupportedHomeComponents(void) {
-    return @"ITEMS_CAROUSEL_V3,NAV_DESTINATIONS_CAROUSEL,TEXT_BANNER,FULL_BLEED_BANNER,MULTI_CTA_BANNER,ITEMS_CAROUSEL,ITEM_CARD_LIST,PAGE_TITLE,NAVIGATION_BAR,COLOR_BLOCK_BANNER,CARD_CONTAINERS_CAROUSEL_GROUP,ITEM_CARD_CAROUSEL";
+    // Advertise the full set of Home/VLP component families present in the
+    // 6.96 HomePageModule so the service can return personalized shelves such
+    // as recommendations, recently-viewed content, events and garage modules.
+    // MERCH_GRID intentionally stays excluded because 6.96 itself marks it as
+    // an excluded Home VLP component.
+    return @"ITEMS_CAROUSEL_V3,NAV_DESTINATIONS_CAROUSEL,TEXT_BANNER,FULL_BLEED_BANNER,MULTI_CTA_BANNER,ITEMS_CAROUSEL,ITEM_CARD_LIST,PAGE_TITLE,NAVIGATION_BAR,COLOR_BLOCK_BANNER,CARD_CONTAINERS_CAROUSEL_GROUP,ITEM_CARD_CAROUSEL,SELLERS,NOTIFICATIONS,EVENTS_CAROUSEL,NAVIGATION_IMAGE_GRID,USER_GARAGE_CAROUSEL,CARD_CONTAINERS_CAROUSEL,USER_GARAGE_MODULE,COLD_START_TOP_OF_PAGE,TOP_OF_PAGE_WITH_VEHICLE,RECOMMENDED_ACTIONS";
 }
 
 static BOOL EB114IsEBayHost(NSString *host) {

@@ -21,8 +21,17 @@ static BOOL EB110IsDCSURL(NSURL *url) {
     return [host isEqualToString:@"mobidcsng.ebay.com"] || [path containsString:@"/mobile/dcs/"];
 }
 
+static BOOL EB110IsShoppingCartURL(NSURL *url) {
+    if (!url) return NO;
+    NSString *path = url.path.lowercaseString ?: @"";
+    return [path containsString:@"/experience/shopping_cart/"];
+}
+
 static NSString *EB110TargetVersionForURL(NSURL *url) {
-    return EB110IsDCSURL(url) ? EB110OriginalVersion : EB110Version;
+    // The legacy 6.96 cart client still posts the old shopping-cart payload.
+    // Keep that payload and its app-version headers internally consistent,
+    // while retaining the newer spoof for the rest of eBay.
+    return (EB110IsDCSURL(url) || EB110IsShoppingCartURL(url)) ? EB110OriginalVersion : EB110Version;
 }
 
 static NSString *EB110RewriteVersionTextForURL(NSString *value, NSURL *url) {

@@ -78,7 +78,7 @@ jobs:
           deb="${debs[0]}"
           test "$(dpkg-deb -f "$deb" Package)" = "com.551.ebayfixer"
           test "$(dpkg-deb -f "$deb" Architecture)" = "iphoneos-arm"
-          test "$(dpkg-deb -f "$deb" Version)" = "1.0.54"
+          test "$(dpkg-deb -f "$deb" Version)" = "1.0.55"
           dpkg-deb -x "$deb" "$RUNNER_TEMP/ebayfixer-check"
           root="$RUNNER_TEMP/ebayfixer-check"
           dylib="$root/Library/MobileSubstrate/DynamicLibraries/eBayFixer.dylib"
@@ -96,6 +96,10 @@ jobs:
           test -s "$entry"
           xcrun lipo "$dylib" -verify_arch arm64 arm64e
           xcrun lipo "$bundle/eBayFixerPrefs" -verify_arch arm64 arm64e
+          if strings "$dylib" | grep -q "eBayFixerDiag"; then
+            echo "Diagnostic logger unexpectedly present in packaged dylib"
+            exit 1
+          fi
           plutil -lint "$filter"
           plutil -lint "$bundle/Info.plist"
           plutil -lint "$bundle/Root.plist"
@@ -119,7 +123,7 @@ jobs:
           version="$(sed -n 's/^Version: //p' control)"
           tag="v${version}"
           deb="$(find packages -maxdepth 1 -name '*.deb' -print -quit)"
-          notes='iOS 14.7.1 startup-crash fix. No existing eBay 6.96.0 Home, search, item, endpoint, spoofing, kill-switch or compatibility fixes were removed. The kill-switch bypass now discovers only matching classes from eBay-owned images instead of globally enumerating every Objective-C/Swift class. Diagnostic logging remains included.'
+          notes='Keeps every existing eBay 6.96.0 compatibility fix and the iOS 14.7.1 startup-crash fix. Adds targeted legacy-version handling for shopping-cart requests and advertises the full 6.96-safe Home VLP component set to restore more personalized Home modules. Diagnostic logging has been removed from the packaged tweak.'
 
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" "$deb" --clobber
