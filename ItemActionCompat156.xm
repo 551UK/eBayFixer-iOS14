@@ -57,6 +57,16 @@ static NSDictionary *EB156PatchBuyBoxModule(NSDictionary *module, BOOL *changedO
 
         NSMutableDictionary *patchedAction = [action mutableCopy];
 
+        // eBay 6.96 predates the newer View Item operation namespace used by
+        // current responses. The old action router understands ADD_TO_CART,
+        // while the service now sends VI_ADD_TO_CART. Keep the button/actionId
+        // untouched for UI/tracking, but translate only the operation name the
+        // legacy dispatcher consumes.
+        if ([action[@"name"] isKindOfClass:[NSString class]] &&
+            [[(NSString *)action[@"name"] uppercaseString] isEqualToString:@"VI_ADD_TO_CART"]) {
+            patchedAction[@"name"] = @"ADD_TO_CART";
+        }
+
         // Current View Item responses provide the listing id on sibling actions
         // (for example VIEW_IN_CART) but omit it from VI_ADD_TO_CART. eBay 6.96's
         // native operation dispatcher predates that contract and expects the

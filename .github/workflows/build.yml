@@ -78,7 +78,7 @@ jobs:
           deb="${debs[0]}"
           test "$(dpkg-deb -f "$deb" Package)" = "com.551.ebayfixer"
           test "$(dpkg-deb -f "$deb" Architecture)" = "iphoneos-arm"
-          test "$(dpkg-deb -f "$deb" Version)" = "1.0.57"
+          test "$(dpkg-deb -f "$deb" Version)" = "1.0.58"
           dpkg-deb -x "$deb" "$RUNNER_TEMP/ebayfixer-check"
           root="$RUNNER_TEMP/ebayfixer-check"
           dylib="$root/Library/MobileSubstrate/DynamicLibraries/eBayFixer.dylib"
@@ -123,7 +123,7 @@ jobs:
           version="$(sed -n 's/^Version: //p' control)"
           tag="v${version}"
           deb="$(find packages -maxdepth 1 -name '*.deb' -print -quit)"
-          notes='Keeps every existing eBay 6.96.0 compatibility fix and the iOS 14.7.1 startup-crash fix. Extends the narrow VI_ADD_TO_CART bridge to restore the legacy non-optional quantity contract as well as listing identity, supplying quantity and quantityRequested = 1 when current responses omit them. No diagnostic logging is included.'
+          notes='Keeps every existing eBay 6.96.0 compatibility fix and the iOS 14.7.1 startup-crash fix. Extends the narrow Add to basket bridge by translating only the current VI_ADD_TO_CART operation name to the legacy ADD_TO_CART operation understood by the older action router, while preserving the button actionId, tracking, listing identity and quantity metadata. No diagnostic logging is included.'
 
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" "$deb" --clobber
