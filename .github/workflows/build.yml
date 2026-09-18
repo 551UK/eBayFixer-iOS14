@@ -78,7 +78,7 @@ jobs:
           deb="${debs[0]}"
           test "$(dpkg-deb -f "$deb" Package)" = "com.551.ebayfixer"
           test "$(dpkg-deb -f "$deb" Architecture)" = "iphoneos-arm"
-          test "$(dpkg-deb -f "$deb" Version)" = "1.0.51"
+          test "$(dpkg-deb -f "$deb" Version)" = "1.0.52"
           dpkg-deb -x "$deb" "$RUNNER_TEMP/ebayfixer-check"
           root="$RUNNER_TEMP/ebayfixer-check"
           dylib="$root/Library/MobileSubstrate/DynamicLibraries/eBayFixer.dylib"

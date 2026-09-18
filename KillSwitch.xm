@@ -53,7 +53,7 @@ static void EBKSScan(void) {
 %ctor {
     @autoreleasepool {
         if (![[[NSBundle mainBundle] bundleIdentifier] isEqualToString:EBKSTargetBundleID] || !EBPrefsEnabled()) return;
-        EBKSScan();
+        dispatch_async(dispatch_get_main_queue(), ^{ EBKSScan(); });
         for (NSNumber *delay in @[@0.25, @1.0, @2.5, @5.0, @8.0]) {
             dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay.doubleValue * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ EBKSScan(); });
         }
