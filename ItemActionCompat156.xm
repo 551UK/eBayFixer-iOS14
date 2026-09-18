@@ -65,11 +65,22 @@ static NSDictionary *EB156PatchBuyBoxModule(NSDictionary *module, BOOL *changedO
             ? [action[@"params"] mutableCopy] : [NSMutableDictionary dictionary];
         if (!params[@"itemId"]) params[@"itemId"] = siblingItemID;
         if (!params[@"listingId"]) params[@"listingId"] = siblingItemID;
+
+        // The legacy ItemProduct AddToCart model has a non-optional Int
+        // quantityRequested field and the handler itself keeps a non-optional
+        // quantity. Current View Item responses can omit both values from
+        // VI_ADD_TO_CART entirely. Supplying the normal default quantity of 1
+        // restores the contract without changing the action name/type.
+        if (!params[@"quantity"]) params[@"quantity"] = @1;
+        if (!params[@"quantityRequested"]) params[@"quantityRequested"] = @1;
         patchedAction[@"params"] = params;
 
         NSMutableDictionary *metadata = [action[@"clientPresentationMetadata"] isKindOfClass:[NSDictionary class]]
             ? [action[@"clientPresentationMetadata"] mutableCopy] : [NSMutableDictionary dictionary];
         if (!metadata[@"itemId"]) metadata[@"itemId"] = siblingItemID;
+        if (!metadata[@"listingId"]) metadata[@"listingId"] = siblingItemID;
+        if (!metadata[@"quantity"]) metadata[@"quantity"] = @1;
+        if (!metadata[@"quantityRequested"]) metadata[@"quantityRequested"] = @1;
         patchedAction[@"clientPresentationMetadata"] = metadata;
 
         NSMutableDictionary *patchedButton = [button mutableCopy];
