@@ -78,7 +78,7 @@ jobs:
           deb="${debs[0]}"
           test "$(dpkg-deb -f "$deb" Package)" = "com.551.ebayfixer"
           test "$(dpkg-deb -f "$deb" Architecture)" = "iphoneos-arm"
-          test "$(dpkg-deb -f "$deb" Version)" = "1.0.59"
+          test "$(dpkg-deb -f "$deb" Version)" = "1.0.60"
           dpkg-deb -x "$deb" "$RUNNER_TEMP/ebayfixer-check"
           root="$RUNNER_TEMP/ebayfixer-check"
           dylib="$root/Library/MobileSubstrate/DynamicLibraries/eBayFixer.dylib"
@@ -123,7 +123,7 @@ jobs:
           version="$(sed -n 's/^Version: //p' control)"
           tag="v${version}"
           deb="$(find packages -maxdepth 1 -name '*.deb' -print -quit)"
-          notes='Keeps every existing eBay 6.96.0 compatibility fix and the iOS 14.7.1 startup-crash fix. Adds a runtime response-action compatibility bridge for Add to basket: EBNResponseAction now exposes VI_ADD_TO_CART as legacy ADD_TO_CART after parsing, including the legacy quantity defaults. This targets the native action-dispatch stage even when View Item is decoded without NSJSONSerialization. No diagnostic logging is included.'
+          notes='Same tweak code and fixes as 1.0.59. Only the package metadata changed: hard dependencies on mobilesubstrate and preferenceloader were removed so rootful iOS 14 setups using Substitute or differently packaged PreferenceLoader can install the DEB. No functional fix was removed or altered.'
 
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" "$deb" --clobber
