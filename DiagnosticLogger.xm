@@ -8,7 +8,7 @@
 #import "Prefs.h"
 
 static NSString *const EBDiagBundleID = @"com.ebay.iphone";
-static NSString *const EBDiagVersion = @"1.0.53";
+static NSString *const EBDiagVersion = @"1.0.54";
 
 static NSArray<NSString *> *EBDiagPaths(void) {
     static NSArray<NSString *> *paths;

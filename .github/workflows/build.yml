@@ -78,7 +78,7 @@ jobs:
           deb="${debs[0]}"
           test "$(dpkg-deb -f "$deb" Package)" = "com.551.ebayfixer"
           test "$(dpkg-deb -f "$deb" Architecture)" = "iphoneos-arm"
-          test "$(dpkg-deb -f "$deb" Version)" = "1.0.53"
+          test "$(dpkg-deb -f "$deb" Version)" = "1.0.54"
           dpkg-deb -x "$deb" "$RUNNER_TEMP/ebayfixer-check"
           root="$RUNNER_TEMP/ebayfixer-check"
           dylib="$root/Library/MobileSubstrate/DynamicLibraries/eBayFixer.dylib"
@@ -119,7 +119,7 @@ jobs:
           version="$(sed -n 's/^Version: //p' control)"
           tag="v${version}"
           deb="$(find packages -maxdepth 1 -name '*.deb' -print -quit)"
-          notes='Diagnostic build for the iOS 14.7.1 startup crash. All existing eBay 6.96.0 Home, search, item, endpoint and compatibility fixes are unchanged; this build only adds a lightweight startup logger.'
+          notes='iOS 14.7.1 startup-crash fix. No existing eBay 6.96.0 Home, search, item, endpoint, spoofing, kill-switch or compatibility fixes were removed. The kill-switch bypass now discovers only matching classes from eBay-owned images instead of globally enumerating every Objective-C/Swift class. Diagnostic logging remains included.'
 
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" "$deb" --clobber
