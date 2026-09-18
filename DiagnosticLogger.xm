@@ -43,7 +43,7 @@ static void EBDiagWriteRaw(NSString *text, BOOL truncateFirst) {
         int flags = O_WRONLY | O_CREAT | (truncateFirst ? O_TRUNC : O_APPEND);
         int fd = open(fsPath, flags, 0644);
         if (fd < 0) continue;
-        const uint8_t *bytes = data.bytes;
+        const uint8_t *bytes = (const uint8_t *)data.bytes;
         size_t remaining = data.length;
         while (remaining > 0) {
             ssize_t n = write(fd, bytes, remaining);
