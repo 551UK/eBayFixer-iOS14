@@ -78,7 +78,7 @@ jobs:
           deb="${debs[0]}"
           test "$(dpkg-deb -f "$deb" Package)" = "com.551.ebayfixer"
           test "$(dpkg-deb -f "$deb" Architecture)" = "iphoneos-arm"
-          test "$(dpkg-deb -f "$deb" Version)" = "1.0.64"
+          test "$(dpkg-deb -f "$deb" Version)" = "1.0.65"
           dpkg-deb -x "$deb" "$RUNNER_TEMP/ebayfixer-check"
           root="$RUNNER_TEMP/ebayfixer-check"
           dylib="$root/Library/MobileSubstrate/DynamicLibraries/eBayFixer.dylib"
@@ -123,7 +123,7 @@ jobs:
           version="$(sed -n 's/^Version: //p' control)"
           tag="v${version}"
           deb="$(find packages -maxdepth 1 -name '*.deb' -print -quit)"
-          notes='Safety rollback of only the direct native Add to basket fallback from 1.0.63 because that path crashes when tapped. All earlier compatibility fixes and response-level cart bridges remain unchanged. No diagnostic logging is included.'
+          notes='Keeps every existing compatibility fix and replaces the crashing 1.0.63 direct-cart experiment with a type-correct native fallback. The tweak now obtains the live View Item listing model, verifies the four cart protocols, obtains ExpSvcShoppingCartDataManager.shared through its exported Swift getter, and passes the listing model (not an NSString item ID) to addListingToCart. If any required object/protocol/symbol is unavailable it safely falls back to the original button path. No diagnostic logging is included.'
 
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" "$deb" --clobber
