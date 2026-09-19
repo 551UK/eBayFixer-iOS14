@@ -78,7 +78,7 @@ jobs:
           deb="${debs[0]}"
           test "$(dpkg-deb -f "$deb" Package)" = "com.551.ebayfixer"
           test "$(dpkg-deb -f "$deb" Architecture)" = "iphoneos-arm"
-          test "$(dpkg-deb -f "$deb" Version)" = "1.0.72"
+          test "$(dpkg-deb -f "$deb" Version)" = "1.0.73"
           dpkg-deb -x "$deb" "$RUNNER_TEMP/ebayfixer-check"
           root="$RUNNER_TEMP/ebayfixer-check"
           dylib="$root/Library/MobileSubstrate/DynamicLibraries/eBayFixer.dylib"
@@ -123,7 +123,7 @@ jobs:
           version="$(sed -n 's/^Version: //p' control)"
           tag="v${version}"
           deb="$(find packages -maxdepth 1 -name '*.deb' -print -quit)"
-          notes='Keeps the existing compatibility fixes and changes only the basket path. Binary inspection of ModuleLinker shows addListingToCart requires one object conforming to ListingCartMTSProtocol, ListingCartRequestProtocol, ListingComparisonProtocol and ListingProtocol. The previous bridge declared the wrong CartListingProtocol and omitted the required transaction and selectedVariation getters. This build corrects that contract, preserves the app configured EBMEBayAppModule.shared.shoppingCart service, captures variationId when present, catches the Add to basket UIControl action before the old handler drops it, and uses the modern 6.273 service version for cart traffic while leaving DCS on 6.96. No diagnostic logging is included.'
+          notes='Clean stable build based on the confirmed-working 1.0.72 behavior. Keeps all Home, search/item, update bypass, DCS compatibility and Add to basket fixes unchanged. Removes obsolete repository notes only; no diagnostic logging, test hooks or superseded cart implementations are included in the package.'
 
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" "$deb" --clobber
