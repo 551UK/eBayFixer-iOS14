@@ -73,16 +73,6 @@ static NSObject *EB171Lock(void) {
     return EB171StateLock;
 }
 
-static NSString *EB171StringID(id value) {
-    if ([value isKindOfClass:[NSString class]] && [(NSString *)value length]) {
-        return value;
-    }
-    if ([value isKindOfClass:[NSNumber class]]) {
-        return [(NSNumber *)value stringValue];
-    }
-    return nil;
-}
-
 static NSString *EB171ListingIDFromURL(NSURL *url) {
     if (!url) return nil;
 
