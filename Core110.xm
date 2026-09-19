@@ -21,12 +21,6 @@ static BOOL EB110IsDCSURL(NSURL *url) {
     return [host isEqualToString:@"mobidcsng.ebay.com"] || [path containsString:@"/mobile/dcs/"];
 }
 
-static BOOL EB110IsShoppingCartURL(NSURL *url) {
-    if (!url) return NO;
-    NSString *path = url.path.lowercaseString ?: @"";
-    return [path containsString:@"/experience/shopping_cart/"];
-}
-
 static NSString *EB110TargetVersionForURL(NSURL *url) {
     // Keep only DCS on the legacy compatibility version. The supplied/installed
     // eBay binary is the same modern build as the 6.267/6.273 IPA, so its cart
