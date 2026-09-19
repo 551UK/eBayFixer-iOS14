@@ -78,7 +78,7 @@ jobs:
           deb="${debs[0]}"
           test "$(dpkg-deb -f "$deb" Package)" = "com.551.ebayfixer"
           test "$(dpkg-deb -f "$deb" Architecture)" = "iphoneos-arm"
-          test "$(dpkg-deb -f "$deb" Version)" = "1.0.63"
+          test "$(dpkg-deb -f "$deb" Version)" = "1.0.64"
           dpkg-deb -x "$deb" "$RUNNER_TEMP/ebayfixer-check"
           root="$RUNNER_TEMP/ebayfixer-check"
           dylib="$root/Library/MobileSubstrate/DynamicLibraries/eBayFixer.dylib"
@@ -123,7 +123,7 @@ jobs:
           version="$(sed -n 's/^Version: //p' control)"
           tag="v${version}"
           deb="$(find packages -maxdepth 1 -name '*.deb' -print -quit)"
-          notes='Keeps every existing compatibility fix. Add to basket now has a direct native fallback: when the visible EUIButton titled Add to basket/Add to cart is tapped, the tweak bypasses the dead VI_ADD_TO_CART dispatcher and calls eBay PaymentsModule ExpSvcShoppingCartDataManager addListingToCart directly using the current View Item listing ID. Existing response bridges remain intact. No diagnostic logging is included.'
+          notes='Safety rollback of only the direct native Add to basket fallback from 1.0.63 because that path crashes when tapped. All earlier compatibility fixes and response-level cart bridges remain unchanged. No diagnostic logging is included.'
 
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" "$deb" --clobber
