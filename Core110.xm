@@ -28,10 +28,10 @@ static BOOL EB110IsShoppingCartURL(NSURL *url) {
 }
 
 static NSString *EB110TargetVersionForURL(NSURL *url) {
-    // The legacy 6.96 cart client still posts the old shopping-cart payload.
-    // Keep that payload and its app-version headers internally consistent,
-    // while retaining the newer spoof for the rest of eBay.
-    return (EB110IsDCSURL(url) || EB110IsShoppingCartURL(url)) ? EB110OriginalVersion : EB110Version;
+    // Keep only DCS on the legacy compatibility version. The supplied/installed
+    // eBay binary is the same modern build as the 6.267/6.273 IPA, so its cart
+    // stack must use the modern app-version contract too.
+    return EB110IsDCSURL(url) ? EB110OriginalVersion : EB110Version;
 }
 
 static NSString *EB110RewriteVersionTextForURL(NSString *value, NSURL *url) {
