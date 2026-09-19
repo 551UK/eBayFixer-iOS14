@@ -2,27 +2,33 @@
 
 Compatibility tweak for **eBay 6.96.0** on **rootful iOS 14**.
 
-This project restores the parts of the old eBay app that stopped working after eBay retired or changed several backend services used by 6.96.0.
+Current stable build: **1.0.73**
 
-## What it fixes
+## Fixes
 
 ### Home
-The original Home request used by eBay 6.96.0 no longer works. The tweak moves Home onto eBay's newer Vertical Landing Page service while keeping the old app's expected F90 Home configuration and supported component contract.
+Restores the Home feed using eBay's newer Vertical Landing Page service while preserving the older app's expected Home configuration and supported component contract.
 
-The old app also gets stuck behind its `HomeHotSwapper` path, so the Home ViewModel never asks the native ModelManager to fetch and publish the page. The tweak rebinds the original 6.96.0 ViewModel and calls its native ModelManager fetch directly. eBay's own parser, models and UI then render the Home feed normally.
+It also bypasses the stale Home routing gate, reconnects the native ViewModel/ModelManager flow and removes unsupported newer Home component types before the old client parses them.
 
-A small compatibility pass removes a few newer nested Home component types that do not exist in the 6.96.0 client.
+### Search and item pages
+Rewrites retired listing-detail v1 requests to the working v2 service and supplies the newer `itemId` / `variationId` parameter names while preserving the older parameters for compatibility.
 
-### Search / item pages
-Search results themselves still use the old app UI, but opening item data relies on retired listing-detail requests. The tweak moves those old v1 listing-detail requests to the newer v2 endpoints and adds the newer `itemId` / `variationId` parameter names while keeping the old parameters in place for compatibility.
+The tweak also enables the newer native item-service path required by the current backend.
 
-It also enables the old app's native newer item-service feature path where required.
+### Add to basket
+Restores the confirmed-working Add to basket path.
 
-### Version checks
-The tweak bypasses the expired/update-required checks and presents a newer app version to the services that require it. DCS is kept on the real **6.96.0** version because newer spoofed DCS versions are rejected by the server..
+The tweak catches the `VI_ADD_TO_CART` action before the old client drops it, then passes the active listing through eBay's own configured shopping-cart service using the ModuleLinker protocol contract required by the supplied eBay binaries. Variation IDs are preserved when present.
 
+### Version and update checks
+Bypasses the expired/update-required checks and presents the newer application version to services that require it.
 
-### Add to basket (1.0.72)
-The current item response still supplies the native `OPERATION` / `VI_ADD_TO_CART` action. The cart bridge now bypasses the older action-routing failure at the UIKit control dispatch and sends the active listing ID directly through eBay's already-configured shopping-cart service.
+DCS remains on the original **6.96.0** compatibility version because newer spoofed DCS versions are rejected, while item and cart traffic use the newer service version.
 
-The bridge matches the exact ModuleLinker ABI found in the supplied newer IPA: its listing object conforms to `ListingCartMTSProtocol`, `ListingCartRequestProtocol`, `ListingComparisonProtocol` and `ListingProtocol`, and provides `listingID`, `transaction`, `selectedVariationID`, `selectedVariation` and `quantityRequested`. Variation IDs are preserved when present. Cart traffic uses the modern spoofed service version while DCS remains on the original compatibility version.
+## Package
+- Rootful iOS 14
+- arm64 + arm64e
+- Settings enable switch
+- eBay Settings icon
+- No diagnostic logger or test instrumentation in the release build
