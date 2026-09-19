@@ -78,7 +78,7 @@ jobs:
           deb="${debs[0]}"
           test "$(dpkg-deb -f "$deb" Package)" = "com.551.ebayfixer"
           test "$(dpkg-deb -f "$deb" Architecture)" = "iphoneos-arm"
-          test "$(dpkg-deb -f "$deb" Version)" = "1.0.71"
+          test "$(dpkg-deb -f "$deb" Version)" = "1.0.72"
           dpkg-deb -x "$deb" "$RUNNER_TEMP/ebayfixer-check"
           root="$RUNNER_TEMP/ebayfixer-check"
           dylib="$root/Library/MobileSubstrate/DynamicLibraries/eBayFixer.dylib"
@@ -123,7 +123,7 @@ jobs:
           version="$(sed -n 's/^Version: //p' control)"
           tag="v${version}"
           deb="$(find packages -maxdepth 1 -name '*.deb' -print -quit)"
-          notes='Keeps every existing compatibility fix and restores the pre-1.0.70 cart version routing. IPA comparison exposed why the previous direct-cart attempts were no-ops: ItemProduct.AddToCartListing in eBay 6.192 has no Objective-C setters, and ViewItemContentDataManager does not expose an Objective-C dataManager getter. This build avoids both. It creates an Objective-C proxy implementing the exact legacy ModuleLinker CartListingProtocol requirements found in the IPA (listingID, transactionID, selectedVariationID, quantityRequested and matchWithItem), then sends that proxy through the app already-configured EBMEBayAppModule.shared.shoppingCart addListingToCart service. No diagnostic logging is included.'
+          notes='Keeps the existing compatibility fixes and changes only the basket path. Binary inspection of ModuleLinker shows addListingToCart requires one object conforming to ListingCartMTSProtocol, ListingCartRequestProtocol, ListingComparisonProtocol and ListingProtocol. The previous bridge declared the wrong CartListingProtocol and omitted the required transaction and selectedVariation getters. This build corrects that contract, preserves the app configured EBMEBayAppModule.shared.shoppingCart service, captures variationId when present, catches the Add to basket UIControl action before the old handler drops it, and uses the modern 6.273 service version for cart traffic while leaving DCS on 6.96. No diagnostic logging is included.'
 
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" "$deb" --clobber
