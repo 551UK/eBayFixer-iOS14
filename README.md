@@ -22,7 +22,7 @@ It also enables the old app's native newer item-service feature path where requi
 The tweak bypasses the expired/update-required checks and presents a newer app version to the services that require it. DCS is kept on the real **6.96.0** version because newer spoofed DCS versions are rejected by the server..
 
 
-### Add to basket (1.0.69)
-The supplied older IPA already handles `OPERATION` + `VI_ADD_TO_CART`. Earlier cart patches incorrectly renamed that operation to `ADD_TO_CART`, preventing its native handler from matching. The .68 fallback also depended on `ItemProduct.AddToCartListing`, which is absent from the older IPA.
+### Add to basket (1.0.72)
+The current item response still supplies the native `OPERATION` / `VI_ADD_TO_CART` action. The cart bridge now bypasses the older action-routing failure at the UIKit control dispatch and sends the active listing ID directly through eBay's already-configured shopping-cart service.
 
-1.0.69 removes those cart-only overrides and restores the original action and native listing flow. Home, item-service, version and Settings fixes are unchanged. Device confirmation is still required. See [IPA comparison](docs/cart-ipa-comparison.md) for the binary evidence.
+The bridge matches the exact ModuleLinker ABI found in the supplied newer IPA: its listing object conforms to `ListingCartMTSProtocol`, `ListingCartRequestProtocol`, `ListingComparisonProtocol` and `ListingProtocol`, and provides `listingID`, `transaction`, `selectedVariationID`, `selectedVariation` and `quantityRequested`. Variation IDs are preserved when present. Cart traffic uses the modern spoofed service version while DCS remains on the original compatibility version.
