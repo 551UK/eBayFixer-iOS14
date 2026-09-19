@@ -78,7 +78,7 @@ jobs:
           deb="${debs[0]}"
           test "$(dpkg-deb -f "$deb" Package)" = "com.551.ebayfixer"
           test "$(dpkg-deb -f "$deb" Architecture)" = "iphoneos-arm"
-          test "$(dpkg-deb -f "$deb" Version)" = "1.0.67"
+          test "$(dpkg-deb -f "$deb" Version)" = "1.0.68"
           dpkg-deb -x "$deb" "$RUNNER_TEMP/ebayfixer-check"
           root="$RUNNER_TEMP/ebayfixer-check"
           dylib="$root/Library/MobileSubstrate/DynamicLibraries/eBayFixer.dylib"
@@ -123,7 +123,7 @@ jobs:
           version="$(sed -n 's/^Version: //p' control)"
           tag="v${version}"
           deb="$(find packages -maxdepth 1 -name '*.deb' -print -quit)"
-          notes='Keeps every existing compatibility fix. Reworks only the direct Add to basket fallback using the legacy cart ABI found in eBay 6.192: the native selector takes ModuleLinker.CartListingProtocol, and ItemProduct provides AddToCartListing with listingID, transactionID, selectedVariationID and quantityRequested. The tweak now builds that exact wrapper from the live View Item model, uses a retained normal ExpSvcShoppingCartDataManager instance because the legacy binary has no exported .shared getter, and performs the instance-method lookup on the real class instead of its metaclass. No diagnostic logging is included.'
+          notes='Keeps every existing compatibility fix. Fixes the no-op in the previous direct-cart fallback by removing the unproven View Item model traversal. The 1.0.63 experiment already proved the tapped button and current listing URL are intercepted, so this build reuses that proven URL item ID, wraps it in the exact legacy ItemProduct.AddToCartListing object confirmed in eBay 6.192, sets quantityRequested=1, and passes that CartListingProtocol object to ExpSvcShoppingCartDataManager. No diagnostic logging is included.'
 
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" "$deb" --clobber
