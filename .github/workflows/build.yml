@@ -78,7 +78,7 @@ jobs:
           deb="${debs[0]}"
           test "$(dpkg-deb -f "$deb" Package)" = "com.551.ebayfixer"
           test "$(dpkg-deb -f "$deb" Architecture)" = "iphoneos-arm"
-          test "$(dpkg-deb -f "$deb" Version)" = "1.0.61"
+          test "$(dpkg-deb -f "$deb" Version)" = "1.0.62"
           dpkg-deb -x "$deb" "$RUNNER_TEMP/ebayfixer-check"
           root="$RUNNER_TEMP/ebayfixer-check"
           dylib="$root/Library/MobileSubstrate/DynamicLibraries/eBayFixer.dylib"
@@ -123,7 +123,7 @@ jobs:
           version="$(sed -n 's/^Version: //p' control)"
           tag="v${version}"
           deb="$(find packages -maxdepth 1 -name '*.deb' -print -quit)"
-          notes='Restores the same rootful package dependencies used by 1.0.59 and keeps every existing compatibility fix. The Add to basket runtime bridge now also captures the listing itemId from parsed VIEW_IN_CART/WATCH sibling actions through EBNResponseAction setters/getters, then supplies that itemId/listingId plus quantity defaults to VI_ADD_TO_CART at tap time. No diagnostic logging is included.'
+          notes='Keeps every existing compatibility fix. Adds a raw View Item response bridge before eBay decodes the JSON: VI_ADD_TO_CART now receives action.params.listingID (the exact field required by PaymentsModule), plus listingId/itemId and quantity defaults copied from sibling Buy Box actions or the request URL. This also covers clients that bypass NSJSONSerialization model hooks. No diagnostic logging is included.'
 
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" "$deb" --clobber
