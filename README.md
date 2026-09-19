@@ -20,3 +20,9 @@ It also enables the old app's native newer item-service feature path where requi
 
 ### Version checks
 The tweak bypasses the expired/update-required checks and presents a newer app version to the services that require it. DCS is kept on the real **6.96.0** version because newer spoofed DCS versions are rejected by the server..
+
+
+### Add to basket (1.0.69)
+The supplied older IPA already handles `OPERATION` + `VI_ADD_TO_CART`. Earlier cart patches incorrectly renamed that operation to `ADD_TO_CART`, preventing its native handler from matching. The .68 fallback also depended on `ItemProduct.AddToCartListing`, which is absent from the older IPA.
+
+1.0.69 removes those cart-only overrides and restores the original action and native listing flow. Home, item-service, version and Settings fixes are unchanged. Device confirmation is still required. See [IPA comparison](docs/cart-ipa-comparison.md) for the binary evidence.

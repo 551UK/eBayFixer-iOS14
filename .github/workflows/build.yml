@@ -78,7 +78,7 @@ jobs:
           deb="${debs[0]}"
           test "$(dpkg-deb -f "$deb" Package)" = "com.551.ebayfixer"
           test "$(dpkg-deb -f "$deb" Architecture)" = "iphoneos-arm"
-          test "$(dpkg-deb -f "$deb" Version)" = "1.0.68"
+          test "$(dpkg-deb -f "$deb" Version)" = "1.0.69"
           dpkg-deb -x "$deb" "$RUNNER_TEMP/ebayfixer-check"
           root="$RUNNER_TEMP/ebayfixer-check"
           dylib="$root/Library/MobileSubstrate/DynamicLibraries/eBayFixer.dylib"
@@ -123,7 +123,7 @@ jobs:
           version="$(sed -n 's/^Version: //p' control)"
           tag="v${version}"
           deb="$(find packages -maxdepth 1 -name '*.deb' -print -quit)"
-          notes='Keeps every existing compatibility fix. Fixes the no-op in the previous direct-cart fallback by removing the unproven View Item model traversal. The 1.0.63 experiment already proved the tapped button and current listing URL are intercepted, so this build reuses that proven URL item ID, wraps it in the exact legacy ItemProduct.AddToCartListing object confirmed in eBay 6.192, sets quantityRequested=1, and passes that CartListingProtocol object to ExpSvcShoppingCartDataManager. No diagnostic logging is included.'
+          notes='Restores the native Add to basket action after comparing both supplied IPAs. The older ItemProduct handler explicitly dispatches OPERATION + VI_ADD_TO_CART. Removed the cart-only overrides that renamed it to ADD_TO_CART, injected guessed listing/quantity fields, and attempted to create AddToCartListing (present only in the newer IPA). Existing Home, item-service, version and Settings fixes remain unchanged. Package validation does not replace testing basket behavior on an iOS 14 device.'
 
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" "$deb" --clobber
@@ -131,9 +131,3 @@ jobs:
           else
             gh release create "$tag" "$deb" --target "$GITHUB_SHA" --title "eBayFixer ${version}" --notes "$notes"
           fi
-
-          gh release list --limit 100 --json tagName --jq '.[].tagName' | while read -r old; do
-            if [ -n "$old" ] && [ "$old" != "$tag" ]; then
-              gh release delete "$old" --yes --cleanup-tag
-            fi
-          done
