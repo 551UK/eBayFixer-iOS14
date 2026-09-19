@@ -21,11 +21,17 @@ static BOOL EB110IsDCSURL(NSURL *url) {
     return [host isEqualToString:@"mobidcsng.ebay.com"] || [path containsString:@"/mobile/dcs/"];
 }
 
+static BOOL EB110IsShoppingCartURL(NSURL *url) {
+    if (!url) return NO;
+    NSString *path = url.path.lowercaseString ?: @"";
+    return [path containsString:@"/experience/shopping_cart/"];
+}
+
 static NSString *EB110TargetVersionForURL(NSURL *url) {
-    // Keep only DCS on the legacy compatibility version. The supplied/installed
-    // eBay binary is the same modern build as the 6.267/6.273 IPA, so its cart
-    // stack must use the modern app-version contract too.
-    return EB110IsDCSURL(url) ? EB110OriginalVersion : EB110Version;
+    // Preserve the known legacy cart contract while keeping the newer spoof
+    // for the rest of eBay.
+    return (EB110IsDCSURL(url) || EB110IsShoppingCartURL(url))
+        ? EB110OriginalVersion : EB110Version;
 }
 
 static NSString *EB110RewriteVersionTextForURL(NSString *value, NSURL *url) {

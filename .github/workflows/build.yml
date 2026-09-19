@@ -78,7 +78,7 @@ jobs:
           deb="${debs[0]}"
           test "$(dpkg-deb -f "$deb" Package)" = "com.551.ebayfixer"
           test "$(dpkg-deb -f "$deb" Architecture)" = "iphoneos-arm"
-          test "$(dpkg-deb -f "$deb" Version)" = "1.0.70"
+          test "$(dpkg-deb -f "$deb" Version)" = "1.0.71"
           dpkg-deb -x "$deb" "$RUNNER_TEMP/ebayfixer-check"
           root="$RUNNER_TEMP/ebayfixer-check"
           dylib="$root/Library/MobileSubstrate/DynamicLibraries/eBayFixer.dylib"
@@ -123,7 +123,7 @@ jobs:
           version="$(sed -n 's/^Version: //p' control)"
           tag="v${version}"
           deb="$(find packages -maxdepth 1 -name '*.deb' -print -quit)"
-          notes='Keeps every existing Home, item-service, version, kill-switch and Settings fix. IPA comparison showed the installed 6.96-labelled app uses the exact same eBay, ItemProduct, PaymentsModule, ModuleLinker and ExpServiceLib binaries as the supplied 6.267/6.273 build. This build therefore stops treating Shopping Cart as a legacy 6.96 client. It captures the active ViewItemContentDataManager, obtains the exact live ViewItemDataManager.listing object through the exported native getters, and passes that real listing object to PaymentsModule addListingToCart. DCS compatibility remains unchanged. No diagnostic logging is included.'
+          notes='Keeps every existing compatibility fix and restores the pre-1.0.70 cart version routing. IPA comparison exposed why the previous direct-cart attempts were no-ops: ItemProduct.AddToCartListing in eBay 6.192 has no Objective-C setters, and ViewItemContentDataManager does not expose an Objective-C dataManager getter. This build avoids both. It creates an Objective-C proxy implementing the exact legacy ModuleLinker CartListingProtocol requirements found in the IPA (listingID, transactionID, selectedVariationID, quantityRequested and matchWithItem), then sends that proxy through the app already-configured EBMEBayAppModule.shared.shoppingCart addListingToCart service. No diagnostic logging is included.'
 
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" "$deb" --clobber
